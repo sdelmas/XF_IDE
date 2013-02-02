@@ -1,0 +1,2787 @@
+# Program: xf
+# Description: handle BLT 2.4 graph widgets
+#
+# Created by Dennis LaBelle
+#
+set default [pwd]
+set blt_version 2.4
+catch {load blt24}
+catch {namespace import blt::*} result
+
+global xfDefaultConf
+set xfDefaultConf(graph) 4
+
+##########
+# Procedure: XFAdd.Graph
+# Description: add a Graph
+# Arguments: xfW - the widget
+#            xfName - a optional name
+#            xfType - add or config
+# Returns: none
+# Sideeffects: none
+##########
+proc XFAdd.Graph {xfW xfName xfType} {
+  global xfStatus
+
+  XFEditSetStatus "Inserting Graph..."
+  set xfName [XFMiscGetUniqueName $xfName graph]
+  if {"$xfStatus(path)" == "."} {
+    if {"$xfType" == "add"} {
+      if {[catch "graph .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Graph...aborted"
+        return
+      }
+    } {
+      if {[catch "Graph .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Graph...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget .$xfName
+    XFMiscBindWidgetTree .$xfName
+  } {
+    if {"$xfType" == "add"} {
+      if {[catch "graph $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Graph...aborted"
+        return
+      }
+    } {
+      if {[catch "graph $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Graph...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget $xfStatus(path).$xfName
+    XFMiscBindWidgetTree $xfStatus(path).$xfName
+  }
+
+  incr xfStatus(elementCounter)
+  XFEditSetPath $xfStatus(path)
+  XFEditSetStatus "Inserting Graph...done"
+}
+
+##########
+# Procedure: XFConfig.Graph4
+# Description: configure a Graph
+# Arguments: xfW - the widget
+#            xfType - config type (add or config)
+#            xfClass - the class we configure
+#            xfLeader - the leading window
+# Returns: none
+# Sideeffects: none
+##########
+proc XFConfig.Graph4 {xfW xfType xfClass {xfLeader ""}} {
+  global xfStatus
+
+  if {"$xfType" == "add"} {
+    set xfName graph$xfStatus(elementCounter)
+  } {
+    set xfName [XFMiscPathName $xfW]
+  }
+  XFEditSetStatus "Calling parameter setting for Graph..."
+
+  xfgraphcfg_gen $xfW
+  if {[winfo exists .xfgraphelem]} {xfgraphcfg_elem $xfW}
+
+  XFEditSetStatus "Calling parameter setting for Graph...done"
+}
+
+##########
+# Procedure: XFGraphSetGraph4
+# Description: set graph parameters
+# Arguments: xfW - the widget
+#            xfType - the type of setting (1 = set always, 0 = set
+#                     only if permanent apply is on)
+#            xfClass - the class we configure
+#            xfParam1 - ignored parameter
+# Returns: none
+# Sideeffects: none
+##########
+proc XFGraphSetGraph4 {xfW xfType xfClass {xfParam1 ""}} {
+  global xfConf
+  global xfMisc
+
+  if {$xfType == 0 && !$xfConf(applyParameters)} {
+    return
+  }
+  if {"[info commands $xfW]" == ""} {
+    return
+  }
+  XFMiscSetSymbolicName $xfW \
+    [.xf${xfClass}Config4.params1.params2.symname.symname get]
+
+  XFMiscSetResource $xfW background \
+    [.xf${xfClass}Config4.params1.params2.bg.bg get]
+}
+
+##########
+# Procedure: XFSaveSpecial.Graph
+# Description: save bargraph
+# Arguments: xfW - the widget
+# Returns: none
+# Sideeffects: none
+##########
+proc XFSaveSpecial.Graph {xfW} {
+global xfgraphDefaults
+global xfgraphcurelem
+global xfgraphelemDefaults
+global xfgraphaxisDefaults
+global xfgraphlegendDefaults
+global xfgraphxhairDefaults
+global xfgraphpsDefaults
+global xfgraphelemOptions
+
+  xfgraph_getopt $xfW
+  set rtnval "\n  $xfW configure $xfgraphDefaults"
+  set vnamelist [vector names]
+  set elements [lsort [$xfW element names]]
+  foreach element $elements {
+	    if {$element != ""} {
+			xfgraph_getelemopt $xfW $element
+			set vname $xfgraphelemOptions(-xdata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n  $vname set {$vecname(:)}"
+			   }
+			set vname $xfgraphelemOptions(-ydata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n  $vname set {$vecname(:)}"
+			   }
+			set rtnval "$rtnval\n  $xfW element create $element $xfgraphelemDefaults"
+		 }
+	  }
+  xfgraph_getaxisopt $xfW xaxis
+  set rtnval "$rtnval\n  $xfW xaxis configure $xfgraphaxisDefaults"
+  xfgraph_getaxisopt $xfW yaxis
+  set rtnval "$rtnval\n  $xfW yaxis configure $xfgraphaxisDefaults"
+  xfgraph_getaxisopt $xfW x2axis
+  set rtnval "$rtnval\n  $xfW x2axis configure $xfgraphaxisDefaults"
+  xfgraph_getaxisopt $xfW y2axis
+  set rtnval "$rtnval\n  $xfW y2axis configure $xfgraphaxisDefaults"
+  xfgraph_getlegendopt $xfW
+  set rtnval "$rtnval\n  $xfW legend configure $xfgraphlegendDefaults"
+  xfgraph_getxhairopt $xfW
+  set rtnval "$rtnval\n  $xfW crosshairs configure $xfgraphxhairDefaults"
+  xfgraph_getpsopt $xfW
+  set rtnval "$rtnval\n  $xfW postscript configure $xfgraphpsDefaults\n"
+  return $rtnval
+}
+# procedure to show window xfgraphshow.xfgraphaxis
+proc xfgraphshow.xfgraphaxis { args} {
+  global xfBind
+
+  # build widget .xfgraphaxis
+  catch "destroy .xfgraphaxis"
+  toplevel .xfgraphaxis   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphaxis ""
+  wm sizefrom .xfgraphaxis ""
+  wm maxsize .xfgraphaxis 1152 849
+  wm minsize .xfgraphaxis 104 1
+  wm title .xfgraphaxis {Graph Axis Configuration Options}
+
+
+  # build widget .xfgraphaxis.frame7
+  frame .xfgraphaxis.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame22
+  frame .xfgraphaxis.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame22.label21
+  label .xfgraphaxis.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame22.label25
+  label .xfgraphaxis.frame7.frame22.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphaxis.frame7.frame26
+  frame .xfgraphaxis.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame26.label18
+  label .xfgraphaxis.frame7.frame26.label18  -borderwidth {0}  -text {Titlefont:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame26.entry19
+  entry .xfgraphaxis.frame7.frame26.entry19  -textvariable {xfgraphaxisOptions(-titlefont)}
+
+  # bindings
+  bind .xfgraphaxis.frame7.frame26.entry19 $xfBind(configure) {set xfgraphnewval [XFFontBox $xfFile(fonts)]
+if {$xfgraphnewval != ""} {set xfgraphaxisOptions(-titlefont) $xfgraphnewval}}
+
+  # build widget .xfgraphaxis.frame7.frame27
+  frame .xfgraphaxis.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame27.label18
+  label .xfgraphaxis.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame27.entry19
+  entry .xfgraphaxis.frame7.frame27.entry19  -textvariable {xfgraphaxisOptions(-linewidth)}
+
+  # build widget .xfgraphaxis.frame7.frame28
+  frame .xfgraphaxis.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame28.label18
+  label .xfgraphaxis.frame7.frame28.label18  -borderwidth {0}  -text {Max:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame28.entry19
+  entry .xfgraphaxis.frame7.frame28.entry19  -textvariable {xfgraphaxisOptions(-max)}
+
+  # build widget .xfgraphaxis.frame7.frame29
+  frame .xfgraphaxis.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame29.label18
+  label .xfgraphaxis.frame7.frame29.label18  -borderwidth {0}  -text {Min:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame29.entry19
+  entry .xfgraphaxis.frame7.frame29.entry19  -textvariable {xfgraphaxisOptions(-min)}
+
+  # build widget .xfgraphaxis.frame7.frame30
+  frame .xfgraphaxis.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame30.label18
+  label .xfgraphaxis.frame7.frame30.label18  -borderwidth {0}  -text {Rotate:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame30.entry19
+  entry .xfgraphaxis.frame7.frame30.entry19  -textvariable {xfgraphaxisOptions(-rotate)}
+
+  # build widget .xfgraphaxis.frame7.frame31
+  frame .xfgraphaxis.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame31.label18
+  label .xfgraphaxis.frame7.frame31.label18  -borderwidth {0}  -text {Stepsize:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame31.entry19
+  entry .xfgraphaxis.frame7.frame31.entry19  -textvariable {xfgraphaxisOptions(-stepsize)}
+
+  # build widget .xfgraphaxis.frame7.frame32
+  frame .xfgraphaxis.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame32.label18
+  label .xfgraphaxis.frame7.frame32.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame32.entry19
+  entry .xfgraphaxis.frame7.frame32.entry19  -textvariable {xfgraphaxisOptions(-color)}
+  # bindings
+  bind .xfgraphaxis.frame7.frame32.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphaxis]
+if {$xfgraphnewval != ""} {set xfgraphaxisOptions(-color) $xfgraphnewval}}
+
+  # build widget .xfgraphaxis.frame7.frame33
+  frame .xfgraphaxis.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame33.label18
+  label .xfgraphaxis.frame7.frame33.label18  -borderwidth {0}  -text {Subdivisions:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame33.entry19
+  entry .xfgraphaxis.frame7.frame33.entry19  -textvariable {xfgraphaxisOptions(-subdivisions)}
+
+  # build widget .xfgraphaxis.frame7.frame34
+  frame .xfgraphaxis.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame34.label18
+  label .xfgraphaxis.frame7.frame34.label18  -borderwidth {0}  -text {Ticklength:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame34.entry19
+  entry .xfgraphaxis.frame7.frame34.entry19  -textvariable {xfgraphaxisOptions(-ticklength)}
+
+  # build widget .xfgraphaxis.frame7.frame35
+  frame .xfgraphaxis.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame35.label18
+  label .xfgraphaxis.frame7.frame35.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame35.entry19
+  entry .xfgraphaxis.frame7.frame35.entry19  -textvariable {xfgraphaxisOptions(-title)}
+
+  # build widget .xfgraphaxis.frame7.frame40
+  frame .xfgraphaxis.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame40.label18
+  label .xfgraphaxis.frame7.frame40.label18  -borderwidth {0}  -text {Descending:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame40.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfgraphaxisOptions(-descending)}
+
+  # build widget .xfgraphaxis.frame7.frame40.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfgraphaxisOptions(-descending)}
+
+  # build widget .xfgraphaxis.frame7.elemnames
+  frame .xfgraphaxis.frame7.elemnames
+
+  # build widget .xfgraphaxis.frame7.elemnames.label6
+  label .xfgraphaxis.frame7.elemnames.label6  -borderwidth {0}  -text {Axis:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.elemnames.xaxis
+  radiobutton .xfgraphaxis.frame7.elemnames.xaxis  -command {xfgraph_getaxisopt $xfgraph_path xaxis}  -text {xaxis}  -value {xaxis}  -variable {xfgraphcuraxis}
+
+  # build widget .xfgraphaxis.frame7.elemnames.xaxis3
+  radiobutton .xfgraphaxis.frame7.elemnames.xaxis3  -command {xfgraph_getaxisopt $xfgraph_path yaxis}  -text {yaxis}  -value {yaxis}  -variable {xfgraphcuraxis}
+
+  # build widget .xfgraphaxis.frame7.elemnames.xaxis4
+  radiobutton .xfgraphaxis.frame7.elemnames.xaxis4  -command {xfgraph_getaxisopt $xfgraph_path x2axis}  -text {x2axis}  -value {x2axis}  -variable {xfgraphcuraxis}
+
+  # build widget .xfgraphaxis.frame7.elemnames.xaxis5
+  radiobutton .xfgraphaxis.frame7.elemnames.xaxis5  -command {xfgraph_getaxisopt $xfgraph_path y2axis}  -text {y2axis}  -value {y2axis}  -variable {xfgraphcuraxis}
+
+  # build widget .xfgraphaxis.frame7.frame6
+  frame .xfgraphaxis.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame6.label18
+  label .xfgraphaxis.frame7.frame6.label18  -borderwidth {0}  -text {Logscale:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame6.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame6.radiobutton41  -text {true}  -value {1}  -variable {xfgraphaxisOptions(-logscale)}
+
+  # build widget .xfgraphaxis.frame7.frame6.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame6.radiobutton42  -text {false}  -value {0}  -variable {xfgraphaxisOptions(-logscale)}
+
+  # build widget .xfgraphaxis.frame7.frame8
+  frame .xfgraphaxis.frame7.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame8.label18
+  label .xfgraphaxis.frame7.frame8.label18  -borderwidth {0}  -text {Loose:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame8.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame8.radiobutton41  -text {true}  -value {1}  -variable {xfgraphaxisOptions(-loose)}
+
+  # build widget .xfgraphaxis.frame7.frame8.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame8.radiobutton42  -text {false}  -value {0}  -variable {xfgraphaxisOptions(-loose)}
+
+  # build widget .xfgraphaxis.frame7.frame10
+  frame .xfgraphaxis.frame7.frame10  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame10.label18
+  label .xfgraphaxis.frame7.frame10.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame10.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame10.radiobutton41  -text {true}  -value {1}  -variable {xfgraphaxisOptions(-hide)}
+
+  # build widget .xfgraphaxis.frame7.frame10.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame10.radiobutton42  -text {false}  -value {0}  -variable {xfgraphaxisOptions(-hide)}
+
+  # build widget .xfgraphaxis.frame7.frame12
+  frame .xfgraphaxis.frame7.frame12  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame12.label18
+  label .xfgraphaxis.frame7.frame12.label18  -borderwidth {0}  -text {Showticks:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame12.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame12.radiobutton41  -text {true}  -value {1}  -variable {xfgraphaxisOptions(-showticks)}
+
+  # build widget .xfgraphaxis.frame7.frame12.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame12.radiobutton42  -text {false}  -value {0}  -variable {xfgraphaxisOptions(-showticks)}
+
+  # build widget .xfgraphaxis.frame7.frame15
+  frame .xfgraphaxis.frame7.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame7.frame15.label18
+  label .xfgraphaxis.frame7.frame15.label18  -borderwidth {0}  -text {Justify:}  -width {16} -anchor e
+
+  # build widget .xfgraphaxis.frame7.frame15.radiobutton41
+  radiobutton .xfgraphaxis.frame7.frame15.radiobutton41  -text {left}  -value {left}  -variable {xfgraphaxisOptions(-justify)}
+
+  # build widget .xfgraphaxis.frame7.frame15.radiobutton42
+  radiobutton .xfgraphaxis.frame7.frame15.radiobutton42  -text {right}  -value {right}  -variable {xfgraphaxisOptions(-justify)}
+
+  # build widget .xfgraphaxis.frame7.frame15.radiobutton17
+  radiobutton .xfgraphaxis.frame7.frame15.radiobutton17  -text {center}  -value {center}  -variable {xfgraphaxisOptions(-justify)}
+
+  # build widget .xfgraphaxis.frame8
+  frame .xfgraphaxis.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame8.button9
+  button .xfgraphaxis.frame8.button9  -command {xfgraphcfg_gen $xfgraph_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfgraphaxis.frame8.button10
+  button .xfgraphaxis.frame8.button10  -command {xfgraphcfg_elem $xfgraph_path}  -padx {11}  -pady {4}  -text {Elements}
+
+  # build widget .xfgraphaxis.frame8.button11
+  button .xfgraphaxis.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfgraphaxis.frame8.button12
+  button .xfgraphaxis.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfgraphaxis.frame8.button13
+  button .xfgraphaxis.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfgraphaxis.frame15
+  frame .xfgraphaxis.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphaxis.frame15.button9
+  button .xfgraphaxis.frame15.button9  -command {set xfnewval "$xfgraph_path $xfgraphcuraxis configure"
+foreach xfitem [array names xfgraphaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphaxisOptions($xfitem)]
+      }
+eval $xfnewval
+xfgraphdestroy.xfgraphaxis}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphaxis.frame15.button10
+  button .xfgraphaxis.frame15.button10  -command {set xfnewval "$xfgraph_path $xfgraphcuraxis configure"
+foreach xfitem [array names xfgraphaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphaxisOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphaxis.frame15.button12
+  button .xfgraphaxis.frame15.button12  -command {eval "$xfgraph_path $xfgraphcuraxis configure $xfgraphaxisDefaults"
+xfgraphdestroy.xfgraphaxis}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphaxis.frame15.checkbutton16
+  checkbutton .xfgraphaxis.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphaxis.frame22
+  frame .xfgraphaxis.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphaxis.frame22.label21
+  label .xfgraphaxis.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphaxis.frame22.label25
+  label .xfgraphaxis.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # pack master .xfgraphaxis.frame7
+  pack configure .xfgraphaxis.frame7.frame22  -fill x
+  pack configure .xfgraphaxis.frame7.elemnames  -fill x
+  pack configure .xfgraphaxis.frame7.frame32  -fill x
+  pack configure .xfgraphaxis.frame7.frame40  -fill x
+  pack configure .xfgraphaxis.frame7.frame15  -fill x
+  pack configure .xfgraphaxis.frame7.frame27  -fill x
+  pack configure .xfgraphaxis.frame7.frame6  -fill x
+  pack configure .xfgraphaxis.frame7.frame8  -fill x
+  pack configure .xfgraphaxis.frame7.frame10  -fill x
+  pack configure .xfgraphaxis.frame7.frame28  -fill x
+  pack configure .xfgraphaxis.frame7.frame29  -fill x
+  pack configure .xfgraphaxis.frame7.frame30  -fill x
+  pack configure .xfgraphaxis.frame7.frame12  -fill x
+  pack configure .xfgraphaxis.frame7.frame31  -fill x
+  pack configure .xfgraphaxis.frame7.frame33  -fill x
+  pack configure .xfgraphaxis.frame7.frame34  -fill x
+  pack configure .xfgraphaxis.frame7.frame35  -fill x
+  pack configure .xfgraphaxis.frame7.frame26  -fill x
+
+  # pack master .xfgraphaxis.frame7.frame22
+  pack configure .xfgraphaxis.frame7.frame22.label21  -side left
+  pack configure .xfgraphaxis.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphaxis.frame7.frame26
+  pack configure .xfgraphaxis.frame7.frame26.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame27
+  pack configure .xfgraphaxis.frame7.frame27.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame28
+  pack configure .xfgraphaxis.frame7.frame28.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame29
+  pack configure .xfgraphaxis.frame7.frame29.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame30
+  pack configure .xfgraphaxis.frame7.frame30.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame31
+  pack configure .xfgraphaxis.frame7.frame31.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame32
+  pack configure .xfgraphaxis.frame7.frame32.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame33
+  pack configure .xfgraphaxis.frame7.frame33.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame34
+  pack configure .xfgraphaxis.frame7.frame34.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame35
+  pack configure .xfgraphaxis.frame7.frame35.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame7.frame40
+  pack configure .xfgraphaxis.frame7.frame40.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfgraphaxis.frame7.elemnames
+  pack configure .xfgraphaxis.frame7.elemnames.label6  -side left
+  pack configure .xfgraphaxis.frame7.elemnames.xaxis  -side left
+  pack configure .xfgraphaxis.frame7.elemnames.xaxis3  -side left
+  pack configure .xfgraphaxis.frame7.elemnames.xaxis4  -side left
+  pack configure .xfgraphaxis.frame7.elemnames.xaxis5  -side left
+
+  # pack master .xfgraphaxis.frame7.frame6
+  pack configure .xfgraphaxis.frame7.frame6.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame6.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame6.radiobutton42  -side left
+
+  # pack master .xfgraphaxis.frame7.frame8
+  pack configure .xfgraphaxis.frame7.frame8.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame8.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame8.radiobutton42  -side left
+
+  # pack master .xfgraphaxis.frame7.frame10
+  pack configure .xfgraphaxis.frame7.frame10.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame10.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame10.radiobutton42  -side left
+
+  # pack master .xfgraphaxis.frame7.frame12
+  pack configure .xfgraphaxis.frame7.frame12.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame12.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame12.radiobutton42  -side left
+
+  # pack master .xfgraphaxis.frame7.frame15
+  pack configure .xfgraphaxis.frame7.frame15.label18  -side left
+  pack configure .xfgraphaxis.frame7.frame15.radiobutton41  -side left
+  pack configure .xfgraphaxis.frame7.frame15.radiobutton42  -side left
+  pack configure .xfgraphaxis.frame7.frame15.radiobutton17  -side left
+
+  # pack master .xfgraphaxis.frame8
+  pack configure .xfgraphaxis.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame15
+  pack configure .xfgraphaxis.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphaxis.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphaxis.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphaxis.frame22
+  pack configure .xfgraphaxis.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphaxis.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphaxis
+  pack configure .xfgraphaxis.frame22  -fill x
+  pack configure .xfgraphaxis.frame7  -expand 1  -fill both
+  pack configure .xfgraphaxis.frame8  -fill x
+  pack configure .xfgraphaxis.frame15  -fill x
+
+}
+
+proc xfgraphdestroy.xfgraphaxis {} {# xf ignore me 7
+    catch "destroy .xfgraphaxis"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphconf
+proc xfgraphshow.xfgraphconf { args} {
+  global xfBind
+
+  # build widget .xfgraphconf
+  catch "destroy .xfgraphconf"
+  toplevel .xfgraphconf 
+
+  # Window manager configurations
+
+  wm positionfrom .xfgraphconf ""
+  wm sizefrom .xfgraphconf ""
+  wm maxsize .xfgraphconf 1156 849
+  wm minsize .xfgraphconf 104 1
+  wm title .xfgraphconf {Graph Configure Tool}
+
+  # build widget .xfgraphconf.cbutton_General
+  checkbutton .xfgraphconf.cbutton_General  -command {ConfigureGeneral}  -text {General}  -variable {varGeneral}
+
+  # build widget .xfgraphconf.cbutton_Element
+  checkbutton .xfgraphconf.cbutton_Element  -command {ConfigureElement}  -text {Element}  -variable {varElement}
+
+  # build widget .xfgraphconf.cbutton_Axis
+  checkbutton .xfgraphconf.cbutton_Axis  -command {ConfigureAxis}  -text {Axis}  -variable {varAxis}
+
+  # build widget .xfgraphconf.cbutton_Legend
+  checkbutton .xfgraphconf.cbutton_Legend  -command {ConfigureLegend}  -text {Legend}  -variable {varLegend}
+
+  # build widget .xfgraphconf.cbutton_Crosshairs
+  checkbutton .xfgraphconf.cbutton_Crosshairs  -command {ConfigureCrosshairs}  -text {Crosshairs}  -variable {varCrosshairs}
+
+  # build widget .xfgraphconf.cbutton_PostScript
+  checkbutton .xfgraphconf.cbutton_PostScript  -command {ConfigurePostScript}  -text {PostScript}  -variable {varPostScript}
+
+  # build widget .xfgraphconf.quit
+  button .xfgraphconf.quit  -command {xfgraphdestroy.xfgraphconf}  -padx {11}  -pady {4}  -text {quit}
+
+  # build widget .xfgraphconf.frame0
+  frame .xfgraphconf.frame0  -borderwidth {2}  -height {30}  -relief {ridge}  -width {30}
+
+  # build widget .xfgraphconf.frame0.label1
+  label .xfgraphconf.frame0.label1  -background {steelblue}  -font {helvetica 12 bold}  -foreground {white}  -relief {groove}  -text {Path:}
+
+  # build widget .xfgraphconf.frame0.entry2
+  entry .xfgraphconf.frame0.entry2  -background {lightblue}  -font {helvetica 12 bold}
+
+  # pack master .xfgraphconf.frame0
+  pack configure .xfgraphconf.frame0.label1  -fill y  -side left
+  pack configure .xfgraphconf.frame0.entry2  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphconf
+  pack configure .xfgraphconf.frame0  -fill x
+  pack configure .xfgraphconf.cbutton_General  -anchor w
+  pack configure .xfgraphconf.cbutton_Element  -anchor w
+  pack configure .xfgraphconf.cbutton_Axis  -anchor w
+  pack configure .xfgraphconf.cbutton_Legend  -anchor w
+  pack configure .xfgraphconf.cbutton_Crosshairs  -anchor w
+  pack configure .xfgraphconf.cbutton_PostScript  -anchor w
+  pack configure .xfgraphconf.quit
+
+  .xfgraphconf.frame0.entry2 insert end {.frame0.xfgraph0}
+}
+
+proc xfgraphdestroy.xfgraphconf {} {# xf ignore me 7
+    catch "destroy .xfgraphconf"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphelem
+proc xfgraphshow.xfgraphelem { args} {
+  global xfBind
+
+  # build widget .xfgraphelem
+  catch "destroy .xfgraphelem"
+  toplevel .xfgraphelem   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphelem ""
+  wm sizefrom .xfgraphelem ""
+  wm maxsize .xfgraphelem 1152 849
+  wm minsize .xfgraphelem 104 1
+  wm title .xfgraphelem {Graph Element Configuration Options}
+
+
+  # build widget .xfgraphelem.frame7
+  frame .xfgraphelem.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame17
+  frame .xfgraphelem.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame17.label18
+  label .xfgraphelem.frame7.frame17.label18  -borderwidth {0}  -text {Fill:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame17.entry19
+  entry .xfgraphelem.frame7.frame17.entry19  -textvariable {xfgraphelemOptions(-fill)}
+  # bindings
+  bind .xfgraphelem.frame7.frame17.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphelem]
+if {$xfgraphnewval != ""} {set xfgraphelemOptions(-fill) $xfgraphnewval}}
+
+  # build widget .xfgraphelem.frame7.frame22
+  frame .xfgraphelem.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame22.label21
+  label .xfgraphelem.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame22.label25
+  label .xfgraphelem.frame7.frame22.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphelem.frame7.frame26
+  frame .xfgraphelem.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame26.label18
+  label .xfgraphelem.frame7.frame26.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame26.entry19
+  entry .xfgraphelem.frame7.frame26.entry19  -textvariable {xfgraphelemOptions(-color)}
+  # bindings
+  bind .xfgraphelem.frame7.frame26.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphelem]
+if {$xfgraphnewval != ""} {set xfgraphelemOptions(-color) $xfgraphnewval}}
+
+  # build widget .xfgraphelem.frame7.frame29
+  frame .xfgraphelem.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame29.label18
+  label .xfgraphelem.frame7.frame29.label18  -borderwidth {0}  -text {Outlinewidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame29.entry19
+  entry .xfgraphelem.frame7.frame29.entry19  -textvariable {xfgraphelemOptions(-outlinewidth)}
+  # bindings
+  bind .xfgraphelem.frame7.frame29.entry19 $xfBind(configure) {set xfgraph(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfgraphelem.frame7.frame30
+  frame .xfgraphelem.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame30.label18
+  label .xfgraphelem.frame7.frame30.label18  -borderwidth {0}  -text {Dashes:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame30.entry19
+  entry .xfgraphelem.frame7.frame30.entry19  -textvariable {xfgraphelemOptions(-dashes)}
+
+  # build widget .xfgraphelem.frame7.frame31
+  frame .xfgraphelem.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame31.label18
+  label .xfgraphelem.frame7.frame31.label18  -borderwidth {0}  -text {Data:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame31.entry19
+  entry .xfgraphelem.frame7.frame31.entry19  -textvariable {xfgraphelemOptions(-data)}
+
+  # build widget .xfgraphelem.frame7.frame32
+  frame .xfgraphelem.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame33
+  frame .xfgraphelem.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame33.label18
+  label .xfgraphelem.frame7.frame33.label18  -borderwidth {0}  -text {Label:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame33.entry19
+  entry .xfgraphelem.frame7.frame33.entry19  -textvariable {xfgraphelemOptions(-label)}
+
+  # build widget .xfgraphelem.frame7.frame34
+  frame .xfgraphelem.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame34.label18
+  label .xfgraphelem.frame7.frame34.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame34.entry19
+  entry .xfgraphelem.frame7.frame34.entry19  -textvariable {xfgraphelemOptions(-linewidth)}
+
+  # build widget .xfgraphelem.frame7.frame52
+  frame .xfgraphelem.frame7.frame52  -height {30}  -width {30}
+  label .xfgraphelem.frame7.frame52.label18  -borderwidth {0}  -text {SymbolSize:}  -width {16} -anchor e
+  entry .xfgraphelem.frame7.frame52.entry19  -textvariable {xfgraphelemOptions(-pixels)}
+
+  # build widget .xfgraphelem.frame7.frame37
+  frame .xfgraphelem.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame37.label18
+  label .xfgraphelem.frame7.frame37.label18  -borderwidth {0}  -text {Scalesymbols:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame37.entry19
+  entry .xfgraphelem.frame7.frame37.entry19  -textvariable {xfgraphelemOptions(-scalesymbols)}
+
+  # build widget .xfgraphelem.frame7.frame38
+  frame .xfgraphelem.frame7.frame38  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame38.label18
+  label .xfgraphelem.frame7.frame38.label18  -borderwidth {0}  -text {Ydata:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame38.entry19
+  entry .xfgraphelem.frame7.frame38.entry19  -textvariable {xfgraphelemOptions(-ydata)}
+
+  # build widget .xfgraphelem.frame7.frame39
+  frame .xfgraphelem.frame7.frame39  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame39.label18
+  label .xfgraphelem.frame7.frame39.label18  -borderwidth {0}  -text {Xdata:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame39.entry19
+  entry .xfgraphelem.frame7.frame39.entry19  -textvariable {xfgraphelemOptions(-xdata)}
+
+  # build widget .xfgraphelem.frame7.frame40
+  frame .xfgraphelem.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame40.label18
+  label .xfgraphelem.frame7.frame40.label18  -borderwidth {0}  -text {Mapx:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame40.radiobutton41
+  radiobutton .xfgraphelem.frame7.frame40.radiobutton41  -text {x}  -value {x}  -variable {xfgraphelemOptions(-mapx)}
+
+  # build widget .xfgraphelem.frame7.frame40.radiobutton42
+  radiobutton .xfgraphelem.frame7.frame40.radiobutton42  -text {x2}  -value {x2}  -variable {xfgraphelemOptions(-mapx)}
+
+  # build widget .xfgraphelem.frame7.frame40.radiobutton12
+  radiobutton .xfgraphelem.frame7.frame40.radiobutton12  -text {both}  -value {both}  -variable {xfgraphelemOptions(-mapx)}
+
+  # build widget .xfgraphelem.frame7.frame43
+  frame .xfgraphelem.frame7.frame43  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame43.label18
+  label .xfgraphelem.frame7.frame43.label18  -borderwidth {0}  -text {Invertxy:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame43.radiobutton41
+  radiobutton .xfgraphelem.frame7.frame43.radiobutton41  -text {true}  -value {1}  -variable {xfgraph(-invertxy)}
+
+  # build widget .xfgraphelem.frame7.frame43.radiobutton42
+  radiobutton .xfgraphelem.frame7.frame43.radiobutton42  -text {false}  -value {0}  -variable {xfgraph(-invertxy)}
+
+  # build widget .xfgraphelem.frame7.frame48
+  frame .xfgraphelem.frame7.frame48  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame48.label18
+  label .xfgraphelem.frame7.frame48.label18  -borderwidth {0}  -text {Trace:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame48.radiobutton41
+  radiobutton .xfgraphelem.frame7.frame48.radiobutton41  -text {both}  -value {both}  -variable {xfgraphelemOptions(-trace)}
+
+  # build widget .xfgraphelem.frame7.frame48.radiobutton42
+  radiobutton .xfgraphelem.frame7.frame48.radiobutton42  -text {decreasing}  -value {decreasing}  -variable {xfgraphelemOptions(-trace)}
+
+  # build widget .xfgraphelem.frame7.frame48.radiobutton45
+  radiobutton .xfgraphelem.frame7.frame48.radiobutton45  -text {increasing}  -value {increasing}  -variable {xfgraphelemOptions(-trace)}
+
+  # build widget .xfgraphelem.frame7.elemnames
+  frame .xfgraphelem.frame7.elemnames
+
+  # build widget .xfgraphelem.frame7.elemnames.label6
+  label .xfgraphelem.frame7.elemnames.label6  -borderwidth {0}  -text {Elements:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.elemnames.frame
+  frame .xfgraphelem.frame7.elemnames.frame
+
+  # build widget .xfgraphelem.frame7.elemnames.frame.rbutton_2
+  radiobutton .xfgraphelem.frame7.elemnames.frame.rbutton_2  -command {xfgraph_getelemopt .frame0.xfgraph0 2}  -text {2}  -value {2}  -variable {xfgraphcurelem}
+
+  # build widget .xfgraphelem.frame7.elemnames.frame.rbutton_6
+  radiobutton .xfgraphelem.frame7.elemnames.frame.rbutton_6  -command {xfgraph_getelemopt .frame0.xfgraph0 6}  -text {6}  -value {6}  -variable {xfgraphcurelem}
+
+  # build widget .xfgraphelem.frame7.frame14
+  frame .xfgraphelem.frame7.frame14  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame14.label18
+  label .xfgraphelem.frame7.frame14.label18  -borderwidth {0}  -text {Mapy:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame14.radiobutton41
+  radiobutton .xfgraphelem.frame7.frame14.radiobutton41  -text {y}  -value {y}  -variable {xfgraphelemOptions(-mapy)}
+
+  # build widget .xfgraphelem.frame7.frame14.radiobutton42
+  radiobutton .xfgraphelem.frame7.frame14.radiobutton42  -text {y2}  -value {y2}  -variable {xfgraphelemOptions(-mapy)}
+
+  # build widget .xfgraphelem.frame7.frame14.radiobutton12
+  radiobutton .xfgraphelem.frame7.frame14.radiobutton12  -text {both}  -value {both}  -variable {xfgraphelemOptions(-mapy)}
+
+  # build widget .xfgraphelem.frame7.frame21
+  frame .xfgraphelem.frame7.frame21  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame21.label18
+  label .xfgraphelem.frame7.frame21.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphelem.frame7.frame21.radiobutton23
+  radiobutton .xfgraphelem.frame7.frame21.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Line}  -value {none}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame21.radiobutton26
+  radiobutton .xfgraphelem.frame7.frame21.radiobutton26  -highlightthickness {0}  -pady {0}  -text {Circle}  -value {circle}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame36
+  frame .xfgraphelem.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame7.frame36.label18
+  label .xfgraphelem.frame7.frame36.label18  -borderwidth {0}  -pady {0}  -text {Symbol:}  -width {16} -anchor e
+
+  # build widget .xfgraphelem.frame7.frame36.radiobutton23
+  radiobutton .xfgraphelem.frame7.frame36.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Diamond}  -value {diamond}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame36.radiobutton26
+  radiobutton .xfgraphelem.frame7.frame36.radiobutton26  -highlightthickness {0}  -pady {0}  -text {Plus}  -value {plus}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame36.radiobutton27
+  radiobutton .xfgraphelem.frame7.frame36.radiobutton27  -highlightthickness {0}  -pady {0}  -text {Square}  -value {square}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame41
+  frame .xfgraphelem.frame7.frame41  -height {30} -width {30}
+
+  # build widget .xfgraphelem.frame7.frame41.label18
+  label .xfgraphelem.frame7.frame41.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphelem.frame7.frame41.radiobutton23
+  radiobutton .xfgraphelem.frame7.frame41.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Scross}  -value {scross}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame41.radiobutton26
+  radiobutton .xfgraphelem.frame7.frame41.radiobutton26  -highlightthickness {0}  -text {Splus}  -value {splus}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame7.frame41.radiobutton27
+  radiobutton .xfgraphelem.frame7.frame41.radiobutton27  -highlightthickness {0}  -pady {0}  -text {Cross}  -value {cross}  -variable {xfgraphelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfgraphelem.frame8
+  frame .xfgraphelem.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame8.button9
+  button .xfgraphelem.frame8.button9  -command {xfgraphcfg_gen $xfgraph_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfgraphelem.frame8.button10
+  button .xfgraphelem.frame8.button10  -command {xfgraphcfg_axis $xfgraph_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfgraphelem.frame8.button11
+  button .xfgraphelem.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfgraphelem.frame8.button12
+  button .xfgraphelem.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfgraphelem.frame8.button13
+  button .xfgraphelem.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfgraphelem.frame15
+  frame .xfgraphelem.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame15.button9
+  button .xfgraphelem.frame15.button9  -command {set xfnewval "$xfgraph_path element configure $xfgraphcurelem"
+foreach xfitem [lsort [array names xfgraphelemOptions]] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphelemOptions($xfitem)]
+      }
+eval $xfnewval
+xfgraphdestroy.xfgraphelem}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphelem.frame15.button10
+  button .xfgraphelem.frame15.button10  -command {if {$xfgraphcurelem != ""} {
+	set xfnewval "$xfgraph_path element configure $xfgraphcurelem"
+	foreach xfitem [lsort [array names xfgraphelemOptions]] {
+		lappend xfnewval $xfitem
+		lappend xfnewval [string trim $xfgraphelemOptions($xfitem)]
+	      }
+	eval $xfnewval
+   }}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphelem.frame15.button12
+  button .xfgraphelem.frame15.button12  -command {if {$xfgraphcurelem != ""} {
+	eval "$xfgraph_path element configure $xfgraphcurelem $xfgraphelemDefaults"
+   }
+xfgraphdestroy.xfgraphelem}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphelem.frame15.checkbutton16
+  checkbutton .xfgraphelem.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphelem.frame22
+  frame .xfgraphelem.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphelem.frame22.label21
+  label .xfgraphelem.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphelem.frame22.label25
+  label .xfgraphelem.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # build widget .xfgraphelem.frame0
+  frame .xfgraphelem.frame0  -height {30}  -width {30}
+
+  # build widget .xfgraphelem.frame0.button3
+  button .xfgraphelem.frame0.button3  -command {set elemlist [$xfgraph_path element names]
+set ctr [llength $elemlist]
+incr ctr
+while {[lsearch $elemlist $ctr] != -1} {
+	incr ctr
+      }
+$xfgraph_path element create $ctr
+xfgraphcfg_elem $xfgraph_path}  -padx {11}  -pady {4}  -text {Add Element}
+
+  # build widget .xfgraphelem.frame0.button2
+  button .xfgraphelem.frame0.button2  -command {if {$xfgraphcurelem != ""} {
+    $xfgraph_path element delete $xfgraphcurelem
+    xfgraphcfg_elem $xfgraph_path
+   }}  -padx {11}  -pady {4}  -text {Delete Element}
+
+  # pack master .xfgraphelem.frame7
+  pack configure .xfgraphelem.frame7.frame22  -fill x
+  pack configure .xfgraphelem.frame7.elemnames  -fill x
+  pack configure .xfgraphelem.frame7.frame17  -fill x
+  pack configure .xfgraphelem.frame7.frame26  -fill x
+  pack configure .xfgraphelem.frame7.frame29  -fill x
+  pack configure .xfgraphelem.frame7.frame30  -fill x
+  pack configure .xfgraphelem.frame7.frame31  -fill x
+  pack configure .xfgraphelem.frame7.frame43  -fill x
+  pack configure .xfgraphelem.frame7.frame33  -fill x
+  pack configure .xfgraphelem.frame7.frame34  -fill x
+  pack configure .xfgraphelem.frame7.frame40  -fill x
+  pack configure .xfgraphelem.frame7.frame14  -fill x
+  pack configure .xfgraphelem.frame7.frame48  -fill x
+  pack configure .xfgraphelem.frame7.frame41  -fill x
+  pack configure .xfgraphelem.frame7.frame36  -fill x
+  pack configure .xfgraphelem.frame7.frame21  -fill x
+  pack configure .xfgraphelem.frame7.frame52  -fill x
+  pack configure .xfgraphelem.frame7.frame37  -fill x
+  pack configure .xfgraphelem.frame7.frame39  -fill x
+  pack configure .xfgraphelem.frame7.frame38  -fill x
+
+  # pack master .xfgraphelem.frame7.frame17
+  pack configure .xfgraphelem.frame7.frame17.label18  -side left
+  pack configure .xfgraphelem.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame22
+  pack configure .xfgraphelem.frame7.frame22.label21  -side left
+  pack configure .xfgraphelem.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphelem.frame7.frame26
+  pack configure .xfgraphelem.frame7.frame26.label18  -side left
+  pack configure .xfgraphelem.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame29
+  pack configure .xfgraphelem.frame7.frame29.label18  -side left
+  pack configure .xfgraphelem.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame30
+  pack configure .xfgraphelem.frame7.frame30.label18  -side left
+  pack configure .xfgraphelem.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame31
+  pack configure .xfgraphelem.frame7.frame31.label18  -side left
+  pack configure .xfgraphelem.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame33
+  pack configure .xfgraphelem.frame7.frame33.label18  -side left
+  pack configure .xfgraphelem.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame34
+  pack configure .xfgraphelem.frame7.frame34.label18  -side left
+  pack configure .xfgraphelem.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame52
+  pack configure .xfgraphelem.frame7.frame52.label18  -side left
+  pack configure .xfgraphelem.frame7.frame52.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame37
+  pack configure .xfgraphelem.frame7.frame37.label18  -side left
+  pack configure .xfgraphelem.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame38
+  pack configure .xfgraphelem.frame7.frame38.label18  -side left
+  pack configure .xfgraphelem.frame7.frame38.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame39
+  pack configure .xfgraphelem.frame7.frame39.label18  -side left
+  pack configure .xfgraphelem.frame7.frame39.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame7.frame40
+  pack configure .xfgraphelem.frame7.frame40.label18  -side left
+  pack configure .xfgraphelem.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphelem.frame7.frame40.radiobutton42  -side left
+  pack configure .xfgraphelem.frame7.frame40.radiobutton12  -side left
+
+  # pack master .xfgraphelem.frame7.frame43
+  pack configure .xfgraphelem.frame7.frame43.label18  -side left
+  pack configure .xfgraphelem.frame7.frame43.radiobutton41  -side left
+  pack configure .xfgraphelem.frame7.frame43.radiobutton42  -side left
+
+  # pack master .xfgraphelem.frame7.frame48
+  pack configure .xfgraphelem.frame7.frame48.label18  -side left
+  pack configure .xfgraphelem.frame7.frame48.radiobutton41  -side left
+  pack configure .xfgraphelem.frame7.frame48.radiobutton42  -side left
+  pack configure .xfgraphelem.frame7.frame48.radiobutton45  -side left
+
+  # pack master .xfgraphelem.frame7.elemnames
+  pack configure .xfgraphelem.frame7.elemnames.label6  -side left
+  pack configure .xfgraphelem.frame7.elemnames.frame
+
+  # pack master .xfgraphelem.frame7.elemnames.frame
+  pack configure .xfgraphelem.frame7.elemnames.frame.rbutton_2  -side left
+  pack configure .xfgraphelem.frame7.elemnames.frame.rbutton_6  -side left
+
+  # pack master .xfgraphelem.frame7.frame14
+  pack configure .xfgraphelem.frame7.frame14.label18  -side left
+  pack configure .xfgraphelem.frame7.frame14.radiobutton41  -side left
+  pack configure .xfgraphelem.frame7.frame14.radiobutton42  -side left
+  pack configure .xfgraphelem.frame7.frame14.radiobutton12  -side left
+
+  # pack master .xfgraphelem.frame7.frame21
+  pack configure .xfgraphelem.frame7.frame21.label18  -anchor n  -side left
+  pack configure .xfgraphelem.frame7.frame21.radiobutton23  -anchor n  -side left
+  pack configure .xfgraphelem.frame7.frame21.radiobutton26  -anchor n  -side left
+
+  # pack master .xfgraphelem.frame7.frame36
+  pack configure .xfgraphelem.frame7.frame36.label18  -side left
+  pack configure .xfgraphelem.frame7.frame36.radiobutton23  -side left
+  pack configure .xfgraphelem.frame7.frame36.radiobutton26  -side left
+  pack configure .xfgraphelem.frame7.frame36.radiobutton27  -side left
+
+  # pack master .xfgraphelem.frame7.frame41
+  pack configure .xfgraphelem.frame7.frame41.label18  -side left
+  pack configure .xfgraphelem.frame7.frame41.radiobutton23  -anchor s  -side left
+  pack configure .xfgraphelem.frame7.frame41.radiobutton26  -anchor s  -side left
+  pack configure .xfgraphelem.frame7.frame41.radiobutton27  -anchor s  -side left
+
+  # pack master .xfgraphelem.frame8
+  pack configure .xfgraphelem.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame15
+  pack configure .xfgraphelem.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphelem.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem.frame22
+  pack configure .xfgraphelem.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphelem.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphelem.frame0
+  pack configure .xfgraphelem.frame0.button3  -expand 1  -fill x  -side left
+  pack configure .xfgraphelem.frame0.button2  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphelem
+  pack configure .xfgraphelem.frame22  -fill x
+  pack configure .xfgraphelem.frame7  -expand 1  -fill both
+  pack configure .xfgraphelem.frame8  -fill x
+  pack configure .xfgraphelem.frame0  -fill x
+  pack configure .xfgraphelem.frame15  -fill x
+}
+
+proc xfgraphdestroy.xfgraphelem {} {
+     catch "destroy .xfgraphelem"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphgen
+proc xfgraphshow.xfgraphgen { args} {
+  global xfBind
+
+  # build widget .xfgraphgen
+  catch "destroy .xfgraphgen"
+  toplevel .xfgraphgen   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphgen ""
+  wm sizefrom .xfgraphgen ""
+  wm maxsize .xfgraphgen 1152 849
+  wm minsize .xfgraphgen 104 10
+  wm title .xfgraphgen {Graph Parameters}
+
+
+  # build widget .xfgraphgen.frame7
+  frame .xfgraphgen.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame17
+  frame .xfgraphgen.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame17.label18
+  label .xfgraphgen.frame7.frame17.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame17.entry19
+  entry .xfgraphgen.frame7.frame17.entry19  -textvariable {xfgraph(-background)}
+  # bindings
+  bind .xfgraphgen.frame7.frame17.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphgen]
+if {$xfgraphnewval != ""} {set xfgraph(-background) $xfgraphnewval}}
+
+  # build widget .xfgraphgen.frame7.frame26
+  frame .xfgraphgen.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame26.label18
+  label .xfgraphgen.frame7.frame26.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame26.entry19
+  entry .xfgraphgen.frame7.frame26.entry19  -textvariable {xfgraph(-borderwidth)}
+
+  # build widget .xfgraphgen.frame7.frame27
+  frame .xfgraphgen.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame27.label18
+  label .xfgraphgen.frame7.frame27.label18  -borderwidth {0}  -text {Bottommargin:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame27.entry19
+  entry .xfgraphgen.frame7.frame27.entry19  -textvariable {xfgraph(-bottommargin)}
+
+  # build widget .xfgraphgen.frame7.frame28
+  frame .xfgraphgen.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame28.label18
+  label .xfgraphgen.frame7.frame28.label18  -borderwidth {0}  -text {Cursor:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame28.entry19
+  entry .xfgraphgen.frame7.frame28.entry19  -textvariable {xfgraph(-cursor)}
+  # bindings
+  bind .xfgraphgen.frame7.frame28.entry19 $xfBind(configure) {set xfnewval [CursorBox $xfFile(cursors)]
+if {$xfnewval != ""} {set xfgraph(-cursor) $xfnewval}}
+
+  # build widget .xfgraphgen.frame7.frame29
+  frame .xfgraphgen.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame29.label18
+  label .xfgraphgen.frame7.frame29.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame29.entry19
+  entry .xfgraphgen.frame7.frame29.entry19  -textvariable {xfgraph(-font)}
+  # bindings
+  bind .xfgraphgen.frame7.frame29.entry19 $xfBind(configure) {set xfgraph(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfgraphgen.frame7.frame30
+  frame .xfgraphgen.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame30.label18
+  label .xfgraphgen.frame7.frame30.label18  -borderwidth {0}  -text {Foreground:} -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame30.entry19
+  entry .xfgraphgen.frame7.frame30.entry19  -textvariable {xfgraph(-foreground)}
+  # bindings
+  bind .xfgraphgen.frame7.frame30.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphgen]
+if {$xfgraphnewval != ""} {set xfgraph(-foreground) $xfgraphnewval}}
+
+  # build widget .xfgraphgen.frame7.frame31
+  frame .xfgraphgen.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame31.label18
+  label .xfgraphgen.frame7.frame31.label18  -borderwidth {0}  -text {Halo:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame31.entry19
+  entry .xfgraphgen.frame7.frame31.entry19  -textvariable {xfgraph(-halo)}
+
+  # build widget .xfgraphgen.frame7.frame32
+  frame .xfgraphgen.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame32.label18
+  label .xfgraphgen.frame7.frame32.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame32.entry19
+  entry .xfgraphgen.frame7.frame32.entry19  -textvariable {xfgraph(-height)}
+
+  # build widget .xfgraphgen.frame7.frame33
+  frame .xfgraphgen.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame33.label18
+  label .xfgraphgen.frame7.frame33.label18  -borderwidth {0}  -text {Leftmargin:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame33.entry19
+  entry .xfgraphgen.frame7.frame33.entry19  -textvariable {xfgraph(-leftmargin)}
+
+  # build widget .xfgraphgen.frame7.frame34
+  frame .xfgraphgen.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame34.label18
+  label .xfgraphgen.frame7.frame34.label18  -borderwidth {0}  -text {Plotbackground:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame34.entry19
+  entry .xfgraphgen.frame7.frame34.entry19  -textvariable {xfgraph(-plotbackground)}
+  # bindings
+  bind .xfgraphgen.frame7.frame34.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphgen]
+if {$xfgraphnewval != ""} {set xfgraph(-plotbackground) $xfgraphnewval}}
+
+  # build widget .xfgraphgen.frame7.frame35
+  frame .xfgraphgen.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame35.label18
+  label .xfgraphgen.frame7.frame35.label18  -borderwidth {0}  -text {Plotborderwidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame35.entry19
+  entry .xfgraphgen.frame7.frame35.entry19  -textvariable {xfgraph(-plotborderwidth)}
+
+  # build widget .xfgraphgen.frame7.frame36
+  frame .xfgraphgen.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame36.label18
+  label .xfgraphgen.frame7.frame36.label18  -borderwidth {0}  -text {Rightmargin:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame36.entry19
+  entry .xfgraphgen.frame7.frame36.entry19  -textvariable {xfgraph(-rightmargin)}
+
+  # build widget .xfgraphgen.frame7.frame37
+  frame .xfgraphgen.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame37.label18
+  label .xfgraphgen.frame7.frame37.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame37.entry19
+  entry .xfgraphgen.frame7.frame37.entry19  -textvariable {xfgraph(-title)}
+
+  # build widget .xfgraphgen.frame7.frame38
+  frame .xfgraphgen.frame7.frame38  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame38.label18
+  label .xfgraphgen.frame7.frame38.label18  -borderwidth {0}  -text {Topmargin:}  -width {16}  -anchor e
+
+  # build widget .xfgraphgen.frame7.frame38.entry19
+  entry .xfgraphgen.frame7.frame38.entry19  -textvariable {xfgraph(-topmargin)}
+
+  # build widget .xfgraphgen.frame7.frame39
+  frame .xfgraphgen.frame7.frame39  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame39.label18
+  label .xfgraphgen.frame7.frame39.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame39.entry19
+  entry .xfgraphgen.frame7.frame39.entry19  -textvariable {xfgraph(-width)}
+
+  # build widget .xfgraphgen.frame7.frame40
+  frame .xfgraphgen.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame40.label18
+  label .xfgraphgen.frame7.frame40.label18  -borderwidth {0}  -text {Bufferlelements:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame40.radiobutton41
+  radiobutton .xfgraphgen.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfgraph(-bufferelements)}
+
+  # build widget .xfgraphgen.frame7.frame40.radiobutton42
+  radiobutton .xfgraphgen.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfgraph(-bufferelements)}
+
+  # build widget .xfgraphgen.frame7.frame43
+  frame .xfgraphgen.frame7.frame43  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame43.label18
+  label .xfgraphgen.frame7.frame43.label18  -borderwidth {0}  -text {Invertxy:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame43.radiobutton41
+  radiobutton .xfgraphgen.frame7.frame43.radiobutton41  -text {true}  -value {1}  -variable {xfgraph(-invertxy)}
+
+  # build widget .xfgraphgen.frame7.frame43.radiobutton42
+  radiobutton .xfgraphgen.frame7.frame43.radiobutton42  -text {false}  -value {0}  -variable {xfgraph(-invertxy)}
+
+  # build widget .xfgraphgen.frame7.frame44
+  frame .xfgraphgen.frame7.frame44  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame44.label18
+  label .xfgraphgen.frame7.frame44.label18  -borderwidth {0}  -text {Plotrelief:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame44.radiobutton41
+  radiobutton .xfgraphgen.frame7.frame44.radiobutton41  -text {raised}  -value {raised}  -variable {xfgraph(-plotrelief)}
+
+  # build widget .xfgraphgen.frame7.frame44.radiobutton42
+  radiobutton .xfgraphgen.frame7.frame44.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfgraph(-plotrelief)}
+
+  # build widget .xfgraphgen.frame7.frame44.radiobutton45
+  radiobutton .xfgraphgen.frame7.frame44.radiobutton45  -text {flat}  -value {flat}  -variable {xfgraph(-plotrelief)}
+
+  # build widget .xfgraphgen.frame7.frame44.radiobutton46
+  radiobutton .xfgraphgen.frame7.frame44.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfgraph(-plotrelief)}
+
+  # build widget .xfgraphgen.frame7.frame44.radiobutton47
+  radiobutton .xfgraphgen.frame7.frame44.radiobutton47  -text {groove}  -value {groove}  -variable {xfgraph(-plotrelief)}
+
+  # build widget .xfgraphgen.frame7.frame48
+  frame .xfgraphgen.frame7.frame48  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame48.label18
+  label .xfgraphgen.frame7.frame48.label18  -borderwidth {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame48.radiobutton41
+  radiobutton .xfgraphgen.frame7.frame48.radiobutton41  -text {raised}  -value {raised}  -variable {xfgraph(-relief)}
+
+  # build widget .xfgraphgen.frame7.frame48.radiobutton42
+  radiobutton .xfgraphgen.frame7.frame48.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfgraph(-relief)}
+
+  # build widget .xfgraphgen.frame7.frame48.radiobutton45
+  radiobutton .xfgraphgen.frame7.frame48.radiobutton45  -text {flat}  -value {flat}  -variable {xfgraph(-relief)}
+
+  # build widget .xfgraphgen.frame7.frame48.radiobutton46
+  radiobutton .xfgraphgen.frame7.frame48.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfgraph(-relief)}
+
+  # build widget .xfgraphgen.frame7.frame48.radiobutton47
+  radiobutton .xfgraphgen.frame7.frame48.radiobutton47  -text {groove}  -value {groove}  -variable {xfgraph(-relief)}
+
+  # build widget .xfgraphgen.frame7.frame1
+  frame .xfgraphgen.frame7.frame1  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame7.frame1.label21
+  label .xfgraphgen.frame7.frame1.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphgen.frame7.frame1.label25
+  label .xfgraphgen.frame7.frame1.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphgen.frame8
+  frame .xfgraphgen.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame8.button9
+  button .xfgraphgen.frame8.button9  -command {xfgraphcfg_elem $xfgraph_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfgraphgen.frame8.button10
+  button .xfgraphgen.frame8.button10  -command {xfgraphcfg_axis $xfgraph_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfgraphgen.frame8.button11
+  button .xfgraphgen.frame8.button11  -command {xfgraphcfg_legend $xfgraph_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfgraphgen.frame8.button12
+  button .xfgraphgen.frame8.button12  -command {xfgraphcfg_xhair $xfgraph_path}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfgraphgen.frame8.button13
+  button .xfgraphgen.frame8.button13  -command {xfgraphcfg_ps $xfgraph_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfgraphgen.frame14
+  frame .xfgraphgen.frame14  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame14.button9
+  button .xfgraphgen.frame14.button9  -padx {11}  -pady {4}  -text {Special}
+
+  # build widget .xfgraphgen.frame14.button10
+  button .xfgraphgen.frame14.button10  -command {XFProcConfParametersGeneral $xfgraph_path}  -padx {11}  -pady {4}  -text {General}
+
+  # build widget .xfgraphgen.frame14.button11
+  button .xfgraphgen.frame14.button11  -command {XFProcConfGeometryDefault $xfgraph_parent}  -padx {11}  -pady {4}  -text {Geometry}
+
+  # build widget .xfgraphgen.frame14.button12
+  button .xfgraphgen.frame14.button12  -command {XFProcConfBinding $xfgraph_path}  -padx {11}  -pady {4}  -text {Binding}
+
+  # build widget .xfgraphgen.frame15
+  frame .xfgraphgen.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphgen.frame15.button9
+  button .xfgraphgen.frame15.button9  -command {set xfgraphDefaults ""
+foreach xfitem [array names xfgraph] {
+	lappend xfgraphDefaults $xfitem
+	lappend xfgraphDefaults [string trim $xfgraph($xfitem)]
+      }
+eval "$xfgraph_path configure $xfgraphDefaults"
+xfgraphdestroy.xfgraphgen}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphgen.frame15.button10
+  button .xfgraphgen.frame15.button10  -command {set xfnewval "$xfgraph_path configure"
+foreach xfitem [array names xfgraph] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraph($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphgen.frame15.button12
+  button .xfgraphgen.frame15.button12  -command {eval "$xfgraph_path configure $xfgraphDefaults"
+xfgraphdestroy.xfgraphgen}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphgen.frame15.checkbutton16
+  checkbutton .xfgraphgen.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphgen.frame22
+  frame .xfgraphgen.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphgen.frame22.label21
+  label .xfgraphgen.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphgen.frame22.label25
+  label .xfgraphgen.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # pack master .xfgraphgen.frame7
+  pack configure .xfgraphgen.frame7.frame1  -fill x
+  pack configure .xfgraphgen.frame7.frame17  -fill x
+  pack configure .xfgraphgen.frame7.frame26  -fill x
+  pack configure .xfgraphgen.frame7.frame27  -fill x
+  pack configure .xfgraphgen.frame7.frame40  -fill x
+  pack configure .xfgraphgen.frame7.frame28  -fill x
+  pack configure .xfgraphgen.frame7.frame29  -fill x
+  pack configure .xfgraphgen.frame7.frame30  -fill x
+  pack configure .xfgraphgen.frame7.frame31  -fill x
+  pack configure .xfgraphgen.frame7.frame32  -fill x
+  pack configure .xfgraphgen.frame7.frame43  -fill x
+  pack configure .xfgraphgen.frame7.frame33  -fill x
+  pack configure .xfgraphgen.frame7.frame34  -fill x
+  pack configure .xfgraphgen.frame7.frame35  -fill x
+  pack configure .xfgraphgen.frame7.frame44  -fill x
+  pack configure .xfgraphgen.frame7.frame48  -fill x
+  pack configure .xfgraphgen.frame7.frame36  -fill x
+  pack configure .xfgraphgen.frame7.frame37  -fill x
+  pack configure .xfgraphgen.frame7.frame38  -fill x
+  pack configure .xfgraphgen.frame7.frame39  -fill x
+
+  # pack master .xfgraphgen.frame7.frame17
+  pack configure .xfgraphgen.frame7.frame17.label18  -side left
+  pack configure .xfgraphgen.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame26
+  pack configure .xfgraphgen.frame7.frame26.label18  -side left
+  pack configure .xfgraphgen.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame27
+  pack configure .xfgraphgen.frame7.frame27.label18  -side left
+  pack configure .xfgraphgen.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame28
+  pack configure .xfgraphgen.frame7.frame28.label18  -side left
+  pack configure .xfgraphgen.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame29
+  pack configure .xfgraphgen.frame7.frame29.label18  -side left
+  pack configure .xfgraphgen.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame30
+  pack configure .xfgraphgen.frame7.frame30.label18  -side left
+  pack configure .xfgraphgen.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame31
+  pack configure .xfgraphgen.frame7.frame31.label18  -side left
+  pack configure .xfgraphgen.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame32
+  pack configure .xfgraphgen.frame7.frame32.label18  -side left
+  pack configure .xfgraphgen.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame33
+  pack configure .xfgraphgen.frame7.frame33.label18  -side left
+  pack configure .xfgraphgen.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame34
+  pack configure .xfgraphgen.frame7.frame34.label18  -side left
+  pack configure .xfgraphgen.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame35
+  pack configure .xfgraphgen.frame7.frame35.label18  -side left
+  pack configure .xfgraphgen.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame36
+  pack configure .xfgraphgen.frame7.frame36.label18  -side left
+  pack configure .xfgraphgen.frame7.frame36.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame37
+  pack configure .xfgraphgen.frame7.frame37.label18  -side left
+  pack configure .xfgraphgen.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame38
+  pack configure .xfgraphgen.frame7.frame38.label18  -side left
+  pack configure .xfgraphgen.frame7.frame38.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame39
+  pack configure .xfgraphgen.frame7.frame39.label18  -side left
+  pack configure .xfgraphgen.frame7.frame39.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame7.frame40
+  pack configure .xfgraphgen.frame7.frame40.label18  -side left
+  pack configure .xfgraphgen.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphgen.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfgraphgen.frame7.frame43
+  pack configure .xfgraphgen.frame7.frame43.label18  -side left
+  pack configure .xfgraphgen.frame7.frame43.radiobutton41  -side left
+  pack configure .xfgraphgen.frame7.frame43.radiobutton42  -side left
+
+  # pack master .xfgraphgen.frame7.frame44
+  pack configure .xfgraphgen.frame7.frame44.label18  -side left
+  pack configure .xfgraphgen.frame7.frame44.radiobutton41  -side left
+  pack configure .xfgraphgen.frame7.frame44.radiobutton42  -side left
+  pack configure .xfgraphgen.frame7.frame44.radiobutton45  -side left
+  pack configure .xfgraphgen.frame7.frame44.radiobutton46  -side left
+  pack configure .xfgraphgen.frame7.frame44.radiobutton47  -side left
+
+  # pack master .xfgraphgen.frame7.frame48
+  pack configure .xfgraphgen.frame7.frame48.label18  -side left
+  pack configure .xfgraphgen.frame7.frame48.radiobutton41  -side left
+  pack configure .xfgraphgen.frame7.frame48.radiobutton42  -side left
+  pack configure .xfgraphgen.frame7.frame48.radiobutton45  -side left
+  pack configure .xfgraphgen.frame7.frame48.radiobutton46  -side left
+  pack configure .xfgraphgen.frame7.frame48.radiobutton47  -side left
+
+  # pack master .xfgraphgen.frame7.frame1
+  pack configure .xfgraphgen.frame7.frame1.label21  -side left
+  pack configure .xfgraphgen.frame7.frame1.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphgen.frame8
+  pack configure .xfgraphgen.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame14
+  pack configure .xfgraphgen.frame14.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame14.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame14.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame14.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame15
+  pack configure .xfgraphgen.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphgen.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphgen.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphgen.frame22
+  pack configure .xfgraphgen.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphgen.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphgen
+  pack configure .xfgraphgen.frame22  -fill x
+  pack configure .xfgraphgen.frame7  -expand 1  -fill both
+  pack configure .xfgraphgen.frame8  -fill x
+  pack configure .xfgraphgen.frame14  -fill x
+  pack configure .xfgraphgen.frame15  -fill x
+}
+
+proc xfgraphdestroy.xfgraphgen {} {
+     catch "destroy .xfgraphgen"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphlegend
+proc xfgraphshow.xfgraphlegend { args} {
+  global xfBind
+
+  # build widget .xfgraphlegend
+  catch "destroy .xfgraphlegend"
+  toplevel .xfgraphlegend   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphlegend ""
+  wm sizefrom .xfgraphlegend ""
+  wm maxsize .xfgraphlegend 1152 849
+  wm minsize .xfgraphlegend 104 1
+  wm title .xfgraphlegend {Graph Legend Configuration Options}
+
+
+  # build widget .xfgraphlegend.frame7
+  frame .xfgraphlegend.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame17
+  frame .xfgraphlegend.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame17.label18
+  label .xfgraphlegend.frame7.frame17.label18  -borderwidth {0}  -text {Activebackground:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame17.entry19
+  entry .xfgraphlegend.frame7.frame17.entry19  -textvariable {xfgraphlegendOptions(-activebackground)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame17.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-activebackground) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame22
+  frame .xfgraphlegend.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame22.label21
+  label .xfgraphlegend.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame22.label25
+  label .xfgraphlegend.frame7.frame22.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphlegend.frame7.frame26
+  frame .xfgraphlegend.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame26.label18
+  label .xfgraphlegend.frame7.frame26.label18  -borderwidth {0}  -text {Activeborderwidth:}  -width {16}
+
+  # build widget .xfgraphlegend.frame7.frame26.entry19
+  entry .xfgraphlegend.frame7.frame26.entry19  -textvariable {xfgraphlegendOptions(-activeborderwidth)}
+
+  # build widget .xfgraphlegend.frame7.frame27
+  frame .xfgraphlegend.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame27.label18
+  label .xfgraphlegend.frame7.frame27.label18  -borderwidth {0}  -text {Activeforeground:}  -width {16} -anchor e
+  # bindings
+  bind .xfgraphlegend.frame7.frame27.label18 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-activeforeground) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame27.entry19
+  entry .xfgraphlegend.frame7.frame27.entry19  -textvariable {xfgraphlegendOptions(-activeforeground)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame27.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-activeforeground) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame28
+  frame .xfgraphlegend.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame28.label18
+  label .xfgraphlegend.frame7.frame28.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame28.entry19
+  entry .xfgraphlegend.frame7.frame28.entry19  -textvariable {xfgraphlegendOptions(-background)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame28.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-background) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame29
+  frame .xfgraphlegend.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame29.label18
+  label .xfgraphlegend.frame7.frame29.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame29.entry19
+  entry .xfgraphlegend.frame7.frame29.entry19  -textvariable {xfgraphelemOptions(-outlinewidth)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame29.entry19 $xfBind(configure) {set xfgraph(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfgraphlegend.frame7.frame30
+  frame .xfgraphlegend.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame30.label18
+  label .xfgraphlegend.frame7.frame30.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+  # bindings
+  bind .xfgraphlegend.frame7.frame30.label18 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-font) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame30.entry19
+  entry .xfgraphlegend.frame7.frame30.entry19  -textvariable {xfgraphlegendOptions(-font)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame30.entry19 $xfBind(configure) {set xfgraphnewval [XFFontBox $xfFile(fonts)]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-font) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame31
+  frame .xfgraphlegend.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame31.label18
+  label .xfgraphlegend.frame7.frame31.label18  -borderwidth {0}  -text {Foreground:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame31.entry19
+  entry .xfgraphlegend.frame7.frame31.entry19  -textvariable {xfgraphlegendOptions(-foreground)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame31.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-foreground) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame34
+  frame .xfgraphlegend.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame34.label18
+  label .xfgraphlegend.frame7.frame34.label18  -borderwidth {0}  -text {Ipadx:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame34.entry19
+  entry .xfgraphlegend.frame7.frame34.entry19  -textvariable {xfgraphlegendOptions(-ipadx)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame34.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-ipadx) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame35
+  frame .xfgraphlegend.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame35.label18
+  label .xfgraphlegend.frame7.frame35.label18  -borderwidth {0}  -text {Ipady:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame35.entry19
+  entry .xfgraphlegend.frame7.frame35.entry19  -textvariable {xfgraphlegendOptions(-ipady)}
+
+  # build widget .xfgraphlegend.frame7.frame37
+  frame .xfgraphlegend.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame37.label18
+  label .xfgraphlegend.frame7.frame37.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame37.entry19
+  entry .xfgraphlegend.frame7.frame37.entry19  -textvariable {xfgraphlegendOptions(-position)}
+
+  # build widget .xfgraphlegend.frame7.frame40
+  frame .xfgraphlegend.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame40.label18
+  label .xfgraphlegend.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame40.radiobutton41
+  radiobutton .xfgraphlegend.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfgraphlegendOptions(-hide)}
+
+  # build widget .xfgraphlegend.frame7.frame40.radiobutton42
+  radiobutton .xfgraphlegend.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfgraphlegendOptions(-hide)}
+
+  # build widget .xfgraphlegend.frame7.frame14
+  frame .xfgraphlegend.frame7.frame14  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame14.label18
+  label .xfgraphlegend.frame7.frame14.label18  -borderwidth {0}  -text {Raised:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame14.radiobutton41
+  radiobutton .xfgraphlegend.frame7.frame14.radiobutton41  -text {true}  -value {1}  -variable {xfgraphlegendOptions(-raised)}
+
+  # build widget .xfgraphlegend.frame7.frame14.radiobutton42
+  radiobutton .xfgraphlegend.frame7.frame14.radiobutton42  -text {false}  -value {0}  -variable {xfgraphlegendOptions(-raised)}
+
+  # build widget .xfgraphlegend.frame7.frame21
+  frame .xfgraphlegend.frame7.frame21  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame21.label18
+  label .xfgraphlegend.frame7.frame21.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphlegend.frame7.frame21.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame21.radiobutton23  -highlightthickness {0}  -pady {0}  -text {nw}  -value {nw}  -variable {xfgraphlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame21.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame21.radiobutton26  -highlightthickness {0}  -pady {0}  -text {n}  -value {n}  -variable {xfgraphlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame21.radiobutton0
+  radiobutton .xfgraphlegend.frame7.frame21.radiobutton0  -highlightthickness {0}  -pady {0}  -text {ne}  -value {ne}  -variable {xfgraphlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame36
+  frame .xfgraphlegend.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame36.label18
+  label .xfgraphlegend.frame7.frame36.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphlegend.frame7.frame36.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame36.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge}  -value {ridge}  -variable {xfgraphlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame36.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame36.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove}  -value {groove}  -variable {xfgraphlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame41
+  frame .xfgraphlegend.frame7.frame41  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame41.label18
+  label .xfgraphlegend.frame7.frame41.label18  -borderwidth {0}  -pady {0}  -text {Activerelief:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame41.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame41.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised}  -value {raised}  -variable {xfgraphlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame41.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame41.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfgraphlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame41.radiobutton27
+  radiobutton .xfgraphlegend.frame7.frame41.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfgraphlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame2
+  frame .xfgraphlegend.frame7.frame2  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame2.label18
+  label .xfgraphlegend.frame7.frame2.label18  -borderwidth {0}  -pady {0}  -text {Anchor:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame2.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame2.radiobutton23  -highlightthickness {0}  -pady {0}  -text {w}  -value {w}  -variable {xfgraphlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame2.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame2.radiobutton26  -highlightthickness {0}  -pady {0}  -text {center}  -value {center}  -variable {xfgraphlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame2.radiobutton0
+  radiobutton .xfgraphlegend.frame7.frame2.radiobutton0  -highlightthickness {0}  -pady {0}  -text {e}  -value {e}  -variable {xfgraphlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame4
+  frame .xfgraphlegend.frame7.frame4  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame4.label18
+  label .xfgraphlegend.frame7.frame4.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphlegend.frame7.frame4.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame4.radiobutton23  -highlightthickness {0}  -pady {0}  -text {sw}  -value {sw}  -variable {xfgraphlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame4.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame4.radiobutton26  -highlightthickness {0}  -pady {0}  -text {s}  -value {s}  -variable {xfgraphlegendOptions(-anchor)} -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame4.radiobutton0
+  radiobutton .xfgraphlegend.frame7.frame4.radiobutton0  -highlightthickness {0}  -pady {0}  -text {se}  -value {se}  -variable {xfgraphlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfgraphlegend.frame7.frame6
+  frame .xfgraphlegend.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame6.label18
+  label .xfgraphlegend.frame7.frame6.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame6.entry19
+  entry .xfgraphlegend.frame7.frame6.entry19  -textvariable {xfgraphlegendOptions(-ipadx)}
+  # bindings
+  bind .xfgraphlegend.frame7.frame6.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphlegend]
+if {$xfgraphnewval != ""} {set xfgraphlegendOptions(-ipadx) $xfgraphnewval}}
+
+  # build widget .xfgraphlegend.frame7.frame9
+  frame .xfgraphlegend.frame7.frame9  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame9.label18
+  label .xfgraphlegend.frame7.frame9.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame9.entry19
+  entry .xfgraphlegend.frame7.frame9.entry19  -textvariable {xfgraphlegendOptions(-pady)}
+
+  # build widget .xfgraphlegend.frame7.frame11
+  frame .xfgraphlegend.frame7.frame11  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame11.label18
+  label .xfgraphlegend.frame7.frame11.label18  -borderwidth {0}  -pady {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfgraphlegend.frame7.frame11.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame11.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised   }  -value {raised}  -variable {xfgraphlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfgraphlegend.frame7.frame11.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame11.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfgraphlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfgraphlegend.frame7.frame11.radiobutton27
+  radiobutton .xfgraphlegend.frame7.frame11.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfgraphlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfgraphlegend.frame7.frame13
+  frame .xfgraphlegend.frame7.frame13  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame7.frame13.label18
+  label .xfgraphlegend.frame7.frame13.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfgraphlegend.frame7.frame13.radiobutton23
+  radiobutton .xfgraphlegend.frame7.frame13.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge     }  -value {ridge}  -variable {xfgraphlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfgraphlegend.frame7.frame13.radiobutton26
+  radiobutton .xfgraphlegend.frame7.frame13.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove }  -value {groove}  -variable {xfgraphlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfgraphlegend.frame8
+  frame .xfgraphlegend.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame8.button9
+  button .xfgraphlegend.frame8.button9  -command {xfgraphcfg_gen $xfgraph_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfgraphlegend.frame8.button10
+  button .xfgraphlegend.frame8.button10  -command {xfgraphcfg_axis $xfgraph_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfgraphlegend.frame8.button11
+  button .xfgraphlegend.frame8.button11  -command {xfgraphcfg_elem $xfgraph_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfgraphlegend.frame8.button12
+  button .xfgraphlegend.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfgraphlegend.frame8.button13
+  button .xfgraphlegend.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfgraphlegend.frame15
+  frame .xfgraphlegend.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphlegend.frame15.button9
+  button .xfgraphlegend.frame15.button9  -command {set xfnewval "$xfgraph_path legend configure"
+foreach xfitem [array names xfgraphlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphlegendOptions($xfitem)]
+      }
+eval $xfnewval
+xfgraphdestroy.xfgraphlegend}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphlegend.frame15.button10
+  button .xfgraphlegend.frame15.button10  -command {set xfnewval "$xfgraph_path legend configure"
+foreach xfitem [array names xfgraphlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphlegendOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphlegend.frame15.button12
+  button .xfgraphlegend.frame15.button12  -command {eval "$xfgraph_path legend configure $xfgraphlegendDefaults"
+xfgraphdestroy.xfgraphlegend}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphlegend.frame15.checkbutton16
+  checkbutton .xfgraphlegend.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphlegend.frame22
+  frame .xfgraphlegend.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphlegend.frame22.label21
+  label .xfgraphlegend.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphlegend.frame22.label25
+  label .xfgraphlegend.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # pack master .xfgraphlegend.frame7
+  pack configure .xfgraphlegend.frame7.frame22  -fill x
+  pack configure .xfgraphlegend.frame7.frame17  -fill x
+  pack configure .xfgraphlegend.frame7.frame26  -fill x
+  pack configure .xfgraphlegend.frame7.frame27  -fill x
+  pack configure .xfgraphlegend.frame7.frame41  -fill x
+  pack configure .xfgraphlegend.frame7.frame36  -fill x
+  pack configure .xfgraphlegend.frame7.frame21  -fill x
+  pack configure .xfgraphlegend.frame7.frame2  -fill x
+  pack configure .xfgraphlegend.frame7.frame4  -fill x
+  pack configure .xfgraphlegend.frame7.frame28  -fill x
+  pack configure .xfgraphlegend.frame7.frame29  -fill x
+  pack configure .xfgraphlegend.frame7.frame30  -fill x
+  pack configure .xfgraphlegend.frame7.frame31  -fill x
+  pack configure .xfgraphlegend.frame7.frame34  -fill x
+  pack configure .xfgraphlegend.frame7.frame35  -fill x
+  pack configure .xfgraphlegend.frame7.frame40  -fill x
+  pack configure .xfgraphlegend.frame7.frame6  -fill x
+  pack configure .xfgraphlegend.frame7.frame9  -fill x
+  pack configure .xfgraphlegend.frame7.frame37  -fill x
+  pack configure .xfgraphlegend.frame7.frame14  -fill x
+  pack configure .xfgraphlegend.frame7.frame11  -fill x
+  pack configure .xfgraphlegend.frame7.frame13  -fill x
+
+  # pack master .xfgraphlegend.frame7.frame17
+  pack configure .xfgraphlegend.frame7.frame17.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame22
+  pack configure .xfgraphlegend.frame7.frame22.label21  -side left
+  pack configure .xfgraphlegend.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphlegend.frame7.frame26
+  pack configure .xfgraphlegend.frame7.frame26.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame27
+  pack configure .xfgraphlegend.frame7.frame27.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame28
+  pack configure .xfgraphlegend.frame7.frame28.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame29
+  pack configure .xfgraphlegend.frame7.frame29.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame30
+  pack configure .xfgraphlegend.frame7.frame30.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame31
+  pack configure .xfgraphlegend.frame7.frame31.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame34
+  pack configure .xfgraphlegend.frame7.frame34.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame35
+  pack configure .xfgraphlegend.frame7.frame35.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame37
+  pack configure .xfgraphlegend.frame7.frame37.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame40
+  pack configure .xfgraphlegend.frame7.frame40.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphlegend.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfgraphlegend.frame7.frame14
+  pack configure .xfgraphlegend.frame7.frame14.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame14.radiobutton41  -side left
+  pack configure .xfgraphlegend.frame7.frame14.radiobutton42  -side left
+
+  # pack master .xfgraphlegend.frame7.frame21
+  pack configure .xfgraphlegend.frame7.frame21.label18  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame21.radiobutton23  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame21.radiobutton26  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame21.radiobutton0  -anchor n  -side left
+
+  # pack master .xfgraphlegend.frame7.frame36
+  pack configure .xfgraphlegend.frame7.frame36.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame36.radiobutton23  -side left
+  pack configure .xfgraphlegend.frame7.frame36.radiobutton26  -side left
+
+  # pack master .xfgraphlegend.frame7.frame41
+  pack configure .xfgraphlegend.frame7.frame41.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame41.radiobutton23  -anchor s  -side left
+  pack configure .xfgraphlegend.frame7.frame41.radiobutton26  -anchor s  -side left
+  pack configure .xfgraphlegend.frame7.frame41.radiobutton27  -anchor s  -side left
+
+  # pack master .xfgraphlegend.frame7.frame2
+  pack configure .xfgraphlegend.frame7.frame2.label18  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame2.radiobutton23  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame2.radiobutton26  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame2.radiobutton0  -anchor n  -side left
+
+  # pack master .xfgraphlegend.frame7.frame4
+  pack configure .xfgraphlegend.frame7.frame4.label18  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame4.radiobutton23  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame4.radiobutton26  -anchor n  -side left
+  pack configure .xfgraphlegend.frame7.frame4.radiobutton0  -anchor n  -side left
+
+  # pack master .xfgraphlegend.frame7.frame6
+  pack configure .xfgraphlegend.frame7.frame6.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame6.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame9
+  pack configure .xfgraphlegend.frame7.frame9.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame9.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame7.frame11
+  pack configure .xfgraphlegend.frame7.frame11.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame11.radiobutton23  -anchor s  -side left
+  pack configure .xfgraphlegend.frame7.frame11.radiobutton26  -anchor s  -side left
+  pack configure .xfgraphlegend.frame7.frame11.radiobutton27  -anchor s  -side left
+
+  # pack master .xfgraphlegend.frame7.frame13
+  pack configure .xfgraphlegend.frame7.frame13.label18  -side left
+  pack configure .xfgraphlegend.frame7.frame13.radiobutton23  -side left
+  pack configure .xfgraphlegend.frame7.frame13.radiobutton26  -side left
+
+  # pack master .xfgraphlegend.frame8
+  pack configure .xfgraphlegend.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame15
+  pack configure .xfgraphlegend.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphlegend.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphlegend.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphlegend.frame22
+  pack configure .xfgraphlegend.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphlegend.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphlegend
+  pack configure .xfgraphlegend.frame22  -fill x
+  pack configure .xfgraphlegend.frame7  -expand 1  -fill both
+  pack configure .xfgraphlegend.frame8  -fill x
+  pack configure .xfgraphlegend.frame15  -fill x
+}
+
+proc xfgraphdestroy.xfgraphlegend {} {
+     catch "destroy .xfgraphlegend"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphps
+proc xfgraphshow.xfgraphps { args} {
+  global xfBind
+
+  # build widget .xfgraphps
+  catch "destroy .xfgraphps"
+  toplevel .xfgraphps   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphps ""
+  wm sizefrom .xfgraphps ""
+  wm maxsize .xfgraphps 1152 849
+  wm minsize .xfgraphps 104 10
+  wm title .xfgraphps {Graph Postscript Configuration}
+
+
+  # build widget .xfgraphps.frame7
+  frame .xfgraphps.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame17
+  frame .xfgraphps.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame17.label18
+  label .xfgraphps.frame7.frame17.label18  -borderwidth {0}  -text {Colormap:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame17.entry19
+  entry .xfgraphps.frame7.frame17.entry19  -textvariable {xfgraphpsOptions(-colormap)}
+
+  # build widget .xfgraphps.frame7.frame22
+  frame .xfgraphps.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame22.label21
+  label .xfgraphps.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame22.label25
+  label .xfgraphps.frame7.frame22.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphps.frame7.frame26
+  frame .xfgraphps.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame26.label18
+  label .xfgraphps.frame7.frame26.label18  -borderwidth {0}  -text {Colormode:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame26.entry19
+  entry .xfgraphps.frame7.frame26.entry19  -textvariable {xfgraphpsOptions(-colormode)}
+
+  # build widget .xfgraphps.frame7.frame27
+  frame .xfgraphps.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame27.label18
+  label .xfgraphps.frame7.frame27.label18  -borderwidth {0}  -text {Fontmap:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame27.entry19
+  entry .xfgraphps.frame7.frame27.entry19  -textvariable {xfgraphpsOptions(-fontmap)}
+
+  # build widget .xfgraphps.frame7.frame28
+  frame .xfgraphps.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame28.label18
+  label .xfgraphps.frame7.frame28.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame28.entry19
+  entry .xfgraphps.frame7.frame28.entry19  -textvariable {xfgraphpsOptions(-padx)}
+
+  # build widget .xfgraphps.frame7.frame40
+  frame .xfgraphps.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame40.label18
+  label .xfgraphps.frame7.frame40.label18  -borderwidth {0}  -text {Decorations:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame40.radiobutton41
+  radiobutton .xfgraphps.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfgraphpsOptions(-decorations)}
+
+  # build widget .xfgraphps.frame7.frame40.radiobutton42
+  radiobutton .xfgraphps.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfgraphpsOptions(-decorations)}
+
+  # build widget .xfgraphps.frame7.frame18
+  frame .xfgraphps.frame7.frame18  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame18.label18
+  label .xfgraphps.frame7.frame18.label18  -borderwidth {0}  -text {Landscape:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame18.radiobutton41
+  radiobutton .xfgraphps.frame7.frame18.radiobutton41  -text {true}  -value {1}  -variable {xfgraphpsOptions(-landscape)}
+
+  # build widget .xfgraphps.frame7.frame18.radiobutton42
+  radiobutton .xfgraphps.frame7.frame18.radiobutton42  -text {false}  -value {0}  -variable {xfgraphpsOptions(-landscape)}
+
+  # build widget .xfgraphps.frame7.frame20
+  frame .xfgraphps.frame7.frame20  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame20.label18
+  label .xfgraphps.frame7.frame20.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame20.entry19
+  entry .xfgraphps.frame7.frame20.entry19  -textvariable {xfgraphpsOptions(-pady)}
+
+  # build widget .xfgraphps.frame7.frame23
+  frame .xfgraphps.frame7.frame23  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame23.label18
+  label .xfgraphps.frame7.frame23.label18  -borderwidth {0}  -text {Paperheight:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame23.entry19
+  entry .xfgraphps.frame7.frame23.entry19  -textvariable {xfgraphpsOptions(-paperheight)}
+
+  # build widget .xfgraphps.frame7.frame25
+  frame .xfgraphps.frame7.frame25  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame25.label18
+  label .xfgraphps.frame7.frame25.label18  -borderwidth {0}  -text {Paperwidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame25.entry19
+  entry .xfgraphps.frame7.frame25.entry19  -textvariable {xfgraphpsOptions(-paperwidth)}
+
+  # build widget .xfgraphps.frame7.frame30
+  frame .xfgraphps.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame30.label18
+  label .xfgraphps.frame7.frame30.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame30.entry19
+  entry .xfgraphps.frame7.frame30.entry19  -textvariable {xfgraphpsOptions(-height)}
+
+  # build widget .xfgraphps.frame7.frame31
+  frame .xfgraphps.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame7.frame31.label18
+  label .xfgraphps.frame7.frame31.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfgraphps.frame7.frame31.entry19
+  entry .xfgraphps.frame7.frame31.entry19  -textvariable {xfgraphpsOptions(-width)}
+
+  # build widget .xfgraphps.frame8
+  frame .xfgraphps.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame8.button9
+  button .xfgraphps.frame8.button9  -command {xfgraphcfg_elem .frame0.xfgraph0}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfgraphps.frame8.button10
+  button .xfgraphps.frame8.button10  -command {xfgraphcfg_axis .frame0.xfgraph0}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfgraphps.frame8.button11
+  button .xfgraphps.frame8.button11  -command {xfgraphcfg_legend .frame0.xfgraph0}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfgraphps.frame8.button12
+  button .xfgraphps.frame8.button12  -command {xfgraphcfg_xhair .frame0.xfgraph0}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfgraphps.frame8.button13
+  button .xfgraphps.frame8.button13  -command {xfgraphcfg_gen .frame0.xfgraph0}  -padx {11}  -pady {4}  -text {Paremeters}
+
+  # build widget .xfgraphps.frame15
+  frame .xfgraphps.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphps.frame15.button9
+  button .xfgraphps.frame15.button9  -command {set xfgraphpsDefaults ""
+foreach xfitem [array names xfgraphpsOptions] {
+	lappend xfgraphpsDefaults $xfitem
+	lappend xfgraphpsDefaults [string trim $xfgraphpsOptions($xfitem)]
+      }
+eval "$xfgraph_path postscript configure $xfgraphpsDefaults"
+xfgraphdestroy.xfgraphps}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphps.frame15.button10
+  button .xfgraphps.frame15.button10  -command {set xfnewval "$xfgraph_path postscript configure"
+foreach xfitem [array names xfgraphpsOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphpsOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphps.frame15.button12
+  button .xfgraphps.frame15.button12  -command {eval "$xfgraph_path postscript configure $xfgraphpsDefaults"
+xfgraphdestroy.xfgraphps}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphps.frame15.checkbutton16
+  checkbutton .xfgraphps.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphps.frame22
+  frame .xfgraphps.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphps.frame22.label21
+  label .xfgraphps.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphps.frame22.label25
+  label .xfgraphps.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # pack master .xfgraphps.frame7
+  pack configure .xfgraphps.frame7.frame22  -fill x
+  pack configure .xfgraphps.frame7.frame17  -fill x
+  pack configure .xfgraphps.frame7.frame26  -fill x
+  pack configure .xfgraphps.frame7.frame40  -fill x
+  pack configure .xfgraphps.frame7.frame27  -fill x
+  pack configure .xfgraphps.frame7.frame18  -fill x
+  pack configure .xfgraphps.frame7.frame28  -fill x
+  pack configure .xfgraphps.frame7.frame20  -fill x
+  pack configure .xfgraphps.frame7.frame23  -fill x
+  pack configure .xfgraphps.frame7.frame25  -fill x
+  pack configure .xfgraphps.frame7.frame30  -fill x
+  pack configure .xfgraphps.frame7.frame31  -fill x
+
+  # pack master .xfgraphps.frame7.frame17
+  pack configure .xfgraphps.frame7.frame17.label18  -side left
+  pack configure .xfgraphps.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame22
+  pack configure .xfgraphps.frame7.frame22.label21  -side left
+  pack configure .xfgraphps.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphps.frame7.frame26
+  pack configure .xfgraphps.frame7.frame26.label18  -side left
+  pack configure .xfgraphps.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame27
+  pack configure .xfgraphps.frame7.frame27.label18  -side left
+  pack configure .xfgraphps.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame28
+  pack configure .xfgraphps.frame7.frame28.label18  -side left
+  pack configure .xfgraphps.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame40
+  pack configure .xfgraphps.frame7.frame40.label18  -side left
+  pack configure .xfgraphps.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphps.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfgraphps.frame7.frame18
+  pack configure .xfgraphps.frame7.frame18.label18  -side left
+  pack configure .xfgraphps.frame7.frame18.radiobutton41  -side left
+  pack configure .xfgraphps.frame7.frame18.radiobutton42  -side left
+
+  # pack master .xfgraphps.frame7.frame20
+  pack configure .xfgraphps.frame7.frame20.label18  -side left
+  pack configure .xfgraphps.frame7.frame20.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame23
+  pack configure .xfgraphps.frame7.frame23.label18  -side left
+  pack configure .xfgraphps.frame7.frame23.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame25
+  pack configure .xfgraphps.frame7.frame25.label18  -side left
+  pack configure .xfgraphps.frame7.frame25.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame30
+  pack configure .xfgraphps.frame7.frame30.label18  -side left
+  pack configure .xfgraphps.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame7.frame31
+  pack configure .xfgraphps.frame7.frame31.label18  -side left
+  pack configure .xfgraphps.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame8
+  pack configure .xfgraphps.frame8.button13  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame8.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame15
+  pack configure .xfgraphps.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphps.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphps.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphps.frame22
+  pack configure .xfgraphps.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphps.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphps
+  pack configure .xfgraphps.frame22  -fill x
+  pack configure .xfgraphps.frame7  -expand 1  -fill both
+  pack configure .xfgraphps.frame8  -fill x
+  pack configure .xfgraphps.frame15  -fill x
+}
+
+proc xfgraphdestroy.xfgraphps {} {
+     catch "destroy .xfgraphps"
+}
+
+
+# procedure to show window xfgraphshow.xfgraphxhair
+proc xfgraphshow.xfgraphxhair { args} {
+  global xfBind
+
+  # build widget .xfgraphxhair
+  catch "destroy .xfgraphxhair"
+  toplevel .xfgraphxhair   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfgraphxhair ""
+  wm sizefrom .xfgraphxhair ""
+  wm maxsize .xfgraphxhair 1152 849
+  wm minsize .xfgraphxhair 104 10
+  wm title .xfgraphxhair {Graph Crosshairs Configuration}
+
+  # build widget .xfgraphxhair.frame7
+  frame .xfgraphxhair.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame17
+  frame .xfgraphxhair.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame17.label18
+  label .xfgraphxhair.frame7.frame17.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfgraphxhair.frame7.frame17.entry19
+  entry .xfgraphxhair.frame7.frame17.entry19  -textvariable {xfgraphxhairOptions(-color)}
+  # bindings
+  bind .xfgraphxhair.frame7.frame17.entry19 $xfBind(configure) {set xfgraphnewval [tk_chooseColor -parent .xfgraphxhair]
+if {$xfgraphnewval != ""} {set xfgraphxhairOptions(-color) $xfgraphnewval}}
+
+  # build widget .xfgraphxhair.frame7.frame22
+  frame .xfgraphxhair.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame22.label21
+  label .xfgraphxhair.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfgraphxhair.frame7.frame22.label25
+  label .xfgraphxhair.frame7.frame22.label25  -borderwidth {0}  -text {graph0}  -textvariable {xfgraph_name}
+
+  # build widget .xfgraphxhair.frame7.frame26
+  frame .xfgraphxhair.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame26.label18
+  label .xfgraphxhair.frame7.frame26.label18  -borderwidth {0}  -text {Dashes:}  -width {16} -anchor e
+
+  # build widget .xfgraphxhair.frame7.frame26.entry19
+  entry .xfgraphxhair.frame7.frame26.entry19  -textvariable {xfgraphxhairOptions(-dashes)}
+
+  # build widget .xfgraphxhair.frame7.frame27
+  frame .xfgraphxhair.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame27.label18
+  label .xfgraphxhair.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfgraphxhair.frame7.frame27.entry19
+  entry .xfgraphxhair.frame7.frame27.entry19  -textvariable {xfgraphxhairOptions(-linewidth)}
+
+  # build widget .xfgraphxhair.frame7.frame28
+  frame .xfgraphxhair.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame28.label18
+  label .xfgraphxhair.frame7.frame28.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfgraphxhair.frame7.frame28.entry19
+  entry .xfgraphxhair.frame7.frame28.entry19  -textvariable {xfgraphxhairOptions(-position)}
+
+  # build widget .xfgraphxhair.frame7.frame40
+  frame .xfgraphxhair.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame7.frame40.label18
+  label .xfgraphxhair.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16}
+
+  # build widget .xfgraphxhair.frame7.frame40.radiobutton41
+  radiobutton .xfgraphxhair.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfgraphxhairOptions(-hide)}
+
+  # build widget .xfgraphxhair.frame7.frame40.radiobutton42
+  radiobutton .xfgraphxhair.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfgraphxhairOptions(-hide)}
+
+  # build widget .xfgraphxhair.frame8
+  frame .xfgraphxhair.frame8  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame8.button9
+  button .xfgraphxhair.frame8.button9  -command {xfgraphcfg_elem $xfgraph_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfgraphxhair.frame8.button10
+  button .xfgraphxhair.frame8.button10  -command {xfgraphcfg_axis $xfgraph_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfgraphxhair.frame8.button11
+  button .xfgraphxhair.frame8.button11  -command {xfgraphcfg_legend $xfgraph_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfgraphxhair.frame8.button12
+  button .xfgraphxhair.frame8.button12  -command {xfgraphcfg_gen $xfgraph_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfgraphxhair.frame8.button13
+  button .xfgraphxhair.frame8.button13  -command {xfgraphcfg_ps $xfgraph_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfgraphxhair.frame15
+  frame .xfgraphxhair.frame15  -height {30}  -width {30}
+
+  # build widget .xfgraphxhair.frame15.button9
+  button .xfgraphxhair.frame15.button9  -command {set xfgraphDefaults ""
+foreach xfitem [array names xfgraphxhairOptions] {
+	lappend xfgraphxhairDefaults $xfitem
+	lappend xfgraphxhairDefaults [string trim $xfgraphxhairOptions($xfitem)]
+      }
+eval "$xfgraph_path crosshairs configure $xfgraphxhairDefaults"
+xfgraphdestroy.xfgraphxhair}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfgraphxhair.frame15.button10
+  button .xfgraphxhair.frame15.button10  -command {set xfnewval "$xfgraph_path crosshairs configure"
+foreach xfitem [array names xfgraphxhairOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfgraphxhairOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfgraphxhair.frame15.button12
+  button .xfgraphxhair.frame15.button12  -command {eval "$xfgraph_path crosshairs configure $xfgraphxhairDefaults"
+xfgraphdestroy.xfgraphxhair}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfgraphxhair.frame15.checkbutton16
+  checkbutton .xfgraphxhair.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfgraphxhair.frame22
+  frame .xfgraphxhair.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfgraphxhair.frame22.label21
+  label .xfgraphxhair.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfgraphxhair.frame22.label25
+  label .xfgraphxhair.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfgraph_parent}
+
+  # pack master .xfgraphxhair.frame7
+  pack configure .xfgraphxhair.frame7.frame22  -fill x
+  pack configure .xfgraphxhair.frame7.frame17  -fill x
+  pack configure .xfgraphxhair.frame7.frame26  -fill x
+  pack configure .xfgraphxhair.frame7.frame27  -fill x
+  pack configure .xfgraphxhair.frame7.frame40  -fill x
+  pack configure .xfgraphxhair.frame7.frame28  -fill x
+
+  # pack master .xfgraphxhair.frame7.frame17
+  pack configure .xfgraphxhair.frame7.frame17.label18  -side left
+  pack configure .xfgraphxhair.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame7.frame22
+  pack configure .xfgraphxhair.frame7.frame22.label21  -side left
+  pack configure .xfgraphxhair.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfgraphxhair.frame7.frame26
+  pack configure .xfgraphxhair.frame7.frame26.label18  -side left
+  pack configure .xfgraphxhair.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame7.frame27
+  pack configure .xfgraphxhair.frame7.frame27.label18  -side left
+  pack configure .xfgraphxhair.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame7.frame28
+  pack configure .xfgraphxhair.frame7.frame28.label18  -side left
+  pack configure .xfgraphxhair.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame7.frame40
+  pack configure .xfgraphxhair.frame7.frame40.label18  -side left
+  pack configure .xfgraphxhair.frame7.frame40.radiobutton41  -side left
+  pack configure .xfgraphxhair.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfgraphxhair.frame8
+  pack configure .xfgraphxhair.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame15
+  pack configure .xfgraphxhair.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfgraphxhair.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfgraphxhair.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfgraphxhair.frame22
+  pack configure .xfgraphxhair.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfgraphxhair.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfgraphxhair
+  pack configure .xfgraphxhair.frame22  -fill x
+  pack configure .xfgraphxhair.frame7  -expand 1  -fill both
+  pack configure .xfgraphxhair.frame8  -fill x
+  pack configure .xfgraphxhair.frame15  -fill x
+}
+
+proc xfgraphdestroy.xfgraphxhair {} {
+     catch "destroy .xfgraphxhair"
+}
+
+# Procedure: xfgraph_getaxisopt
+proc xfgraph_getaxisopt { graph_path axis} {
+    global xfgraphaxisOptions xfgraphaxisDefaults
+
+    foreach item [$graph_path $axis configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraphaxisOptions($name) $value
+    }
+    set names [lsort [array names xfgraphaxisOptions]]
+    set xfgraphaxisDefaults {}
+    foreach i $names {
+	lappend xfgraphaxisDefaults $i $xfgraphaxisOptions($i)
+    }
+}
+
+
+# Procedure: xfgraph_getelemopt
+proc xfgraph_getelemopt { graph_path element} {
+    global xfgraphelemOptions xfgraphelemDefaults xfgraphcurelem
+
+    set xfgraphcurelem $element
+    foreach item [$graph_path element configure $element] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraphelemOptions($name) $value
+    }
+    set names [lsort [array names xfgraphelemOptions]]
+    set xfgraphelemDefaults {}
+    foreach i $names {
+	lappend xfgraphelemDefaults $i $xfgraphelemOptions($i)
+    }
+}
+
+
+# Procedure: xfgraph_getlegendopt
+proc xfgraph_getlegendopt { graph_path} {
+    global xfgraphlegendOptions xfgraphlegendDefaults
+
+    foreach item [$graph_path legend configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraphlegendOptions($name) $value
+    }
+    set names [lsort [array names xfgraphlegendOptions]]
+    set xfgraphlegendDefaults {}
+    foreach i $names {
+	lappend xfgraphlegendDefaults $i $xfgraphlegendOptions($i)
+    }
+}
+
+
+# Procedure: xfgraph_getopt
+proc xfgraph_getopt { graph_path} {
+    global xfgraph xfgraphDefaults
+
+    foreach item [$graph_path configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraph($name) $value
+    }
+    set names [lsort [array names xfgraph]]
+    set xfgraphDefaults {}
+    foreach i $names {
+	lappend xfgraphDefaults $i $xfgraph($i)
+    }
+}
+
+
+# Procedure: xfgraph_getpsopt
+proc xfgraph_getpsopt { graph_path} {
+    global xfgraphpsOptions xfgraphpsDefaults
+
+    foreach item [$graph_path postscript configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraphpsOptions($name) $value
+    }
+    set names [lsort [array names xfgraphpsOptions]]
+    set xfgraphpsDefaults {}
+    foreach i $names {
+	lappend xfgraphpsDefaults $i $xfgraphpsOptions($i)
+    }
+}
+
+
+# Procedure: xfgraph_getxhairopt
+proc xfgraph_getxhairopt { graph_path} {
+    global xfgraphxhairOptions xfgraphxhairDefaults
+
+    foreach item [$graph_path crosshairs configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfgraphxhairOptions($name) $value
+    }
+    set names [lsort [array names xfgraphxhairOptions]]
+    set xfgraphxhairDefaults {}
+    foreach i $names {
+	lappend xfgraphxhairDefaults $i $xfgraphxhairOptions($i)
+    }
+}
+
+
+# Procedure: xfgraphcfg_axis
+proc xfgraphcfg_axis { graph_path} {
+    global xfgraphaxisOptions xfgraphaxisDefaults 
+    global xfgraph_parent xfgraph_name xfgraphcuraxis xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    xfgraph_getaxisopt $graph_path xaxis
+    xfgraphshow.xfgraphaxis
+    set xfgraphcuraxis xaxis
+}
+
+
+# Procedure: xfgraphcfg_elem
+proc xfgraphcfg_elem { graph_path} {
+    global xfgraphelemOptions xfgraphelemDefaults
+    global xfgraph_parent xfgraph_name xfgraphcurelem xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    set elements [lsort [$graph_path element names]]
+    if	{ [llength $elements] > 0 } {
+	  set element [lindex $elements 0]
+	  xfgraph_getelemopt $graph_path $element
+	} {
+	  set xfgraphcurelem ""
+	}
+
+    xfgraphshow.xfgraphelem
+    update
+
+    set count 0
+    if {[winfo exists .xfgraphelem.frame7.elemnames.frame]} {destroy .xfgraphelem.frame7.elemnames.frame}
+    frame .xfgraphelem.frame7.elemnames.frame
+    pack .xfgraphelem.frame7.elemnames.frame
+    foreach i $elements {
+	radiobutton .xfgraphelem.frame7.elemnames.frame.rbutton_$i -variable xfgraphcurelem -value $i -text $i  -command "xfgraph_getelemopt $graph_path $i"
+	pack .xfgraphelem.frame7.elemnames.frame.rbutton_$i -side left
+	incr count
+    }
+}
+
+
+# Procedure: xfgraphcfg_gen
+proc xfgraphcfg_gen { graph_path} {
+    global xfgraph xfgraphDefaults
+    global xfgraph_parent xfgraph_name xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    xfgraph_getopt $graph_path
+    xfgraphshow.xfgraphgen
+}
+
+
+# Procedure: xfgraphcfg_legend
+proc xfgraphcfg_legend { graph_path} {
+    global xfgraphlegendOptions xfgraphlegendDefaults
+    global xfgraph_parent xfgraph_name xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    xfgraph_getlegendopt $graph_path
+    xfgraphshow.xfgraphlegend
+}
+
+
+# Procedure: xfgraphcfg_ps
+proc xfgraphcfg_ps { graph_path} {
+    global xfgraphpsOptions xfgraphpsDefaults
+    global xfgraph_parent xfgraph_name xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    xfgraph_getpsopt $graph_path
+    xfgraphshow.xfgraphps
+}
+
+
+# Procedure: xfgraphcfg_xhair
+proc xfgraphcfg_xhair { graph_path} {
+    global xfgraphxhairOptions xfgraphxhairDefaults
+    global xfgraph_parent xfgraph_name xfgraph_path
+
+    set xfgraph_parent [winfo parent $graph_path]
+    set xfgraph_name [winfo name $graph_path]
+    set xfgraph_path $graph_path
+
+    xfgraph_getxhairopt $graph_path
+    xfgraphshow.xfgraphxhair
+}
+
+# eof
+

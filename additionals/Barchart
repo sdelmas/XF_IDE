@@ -1,0 +1,2570 @@
+# Program: xf
+# Description: handle BLT 2.4 barchart widgets
+#
+# Created by Dennis LaBelle - 11/29/98
+#
+set default [pwd]
+set blt_version 2.4
+catch {load blt24}
+catch {namespace import blt::*} result
+
+global xfDefaultConf
+set xfDefaultConf(barchart) 4
+
+##########
+# Procedure: XFAdd.Barchart
+# Description: add a Barchart
+# Arguments: xfW - the widget
+#            xfName - a optional name
+#            xfType - add or config
+# Returns: none
+# Sideeffects: none
+##########
+proc XFAdd.Barchart {xfW xfName xfType} {
+  global xfStatus
+
+  XFEditSetStatus "Inserting Barchart..."
+  set xfName [XFMiscGetUniqueName $xfName barchart]
+  if {"$xfStatus(path)" == "."} {
+    if {"$xfType" == "add"} {
+      if {[catch "barchart .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Barchart...aborted"
+        return
+      }
+    } {
+      if {[catch "Barchart .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Barchart...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget .$xfName
+    XFMiscBindWidgetTree .$xfName
+  } {
+    if {"$xfType" == "add"} {
+      if {[catch "barchart $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Barchart...aborted"
+        return
+      }
+    } {
+      if {[catch "barchart $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Barchart...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget $xfStatus(path).$xfName
+    XFMiscBindWidgetTree $xfStatus(path).$xfName
+  }
+
+  incr xfStatus(elementCounter)
+  XFEditSetPath $xfStatus(path)
+  XFEditSetStatus "Inserting Barchart...done"
+}
+
+##########
+# Procedure: XFConfig.Barchart4
+# Description: configure a Barchart
+# Arguments: xfW - the widget
+#            xfType - config type (add or config)
+#            xfClass - the class we configure
+#            xfLeader - the leading window
+# Returns: none
+# Sideeffects: none
+##########
+proc XFConfig.Barchart4 {xfW xfType xfClass {xfLeader ""}} {
+  global xfStatus
+
+  if {"$xfType" == "add"} {
+    set xfName barchart$xfStatus(elementCounter)
+  } {
+    set xfName [XFMiscPathName $xfW]
+  }
+  XFEditSetStatus "Calling parameter setting for Barchart..."
+
+  xfbarchartcfg_gen $xfW
+  if {[winfo exists .xfbarchartelem]} {xfbarchartcfg_elem $xfW}
+
+  XFEditSetStatus "Calling parameter setting for Barchart...done"
+}
+
+##########
+# Procedure: XFBarchartSetBarchart4
+# Description: set barchart parameters
+# Arguments: xfW - the widget
+#            xfType - the type of setting (1 = set always, 0 = set
+#                     only if permanent apply is on)
+#            xfClass - the class we configure
+#            xfParam1 - ignored parameter
+# Returns: none
+# Sideeffects: none
+##########
+proc XFBarchartSetBarchart4 {xfW xfType xfClass {xfParam1 ""}} {
+  global xfConf
+  global xfMisc
+
+  if {$xfType == 0 && !$xfConf(applyParameters)} {
+    return
+  }
+  if {"[info commands $xfW]" == ""} {
+    return
+  }
+  XFMiscSetSymbolicName $xfW \
+    [.xf${xfClass}Config4.params1.params2.symname.symname get]
+
+  XFMiscSetResource $xfW background \
+    [.xf${xfClass}Config4.params1.params2.bg.bg get]
+}
+
+##########
+# Procedure: XFSaveSpecial.Barchart
+# Description: save barbarchart
+# Arguments: xfW - the widget
+# Returns: none
+# Sideeffects: none
+##########
+proc XFSaveSpecial.Barchart {xfW} {
+global xfbarchartDefaults
+global xfbarchartcurelem
+global xfbarchartelemDefaults
+global xfbarchartaxisDefaults
+global xfbarchartlegendDefaults
+global xfbarchartxhairDefaults
+global xfbarchartpsDefaults
+global xfbarchartelemOptions
+
+  xfbarchart_getopt $xfW
+  set rtnval "\n  $xfW configure $xfbarchartDefaults\n"
+  set vnamelist [vector names]
+  set elements [lsort [$xfW element names]]
+  foreach element $elements {
+	    if {$element != ""} {
+			xfbarchart_getelemopt $xfW $element
+			set vname $xfbarchartelemOptions(-xdata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n$vname set {$vecname(:)}"
+			   }
+			set vname $xfbarchartelemOptions(-ydata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n$vname set {$vecname(:)}"
+			   }
+			set rtnval "$rtnval\n  $xfW element create $element $xfbarchartelemDefaults\n"
+		 }
+	  }
+  xfbarchart_getaxisopt $xfW xaxis
+  set rtnval "$rtnval\n  $xfW xaxis configure $xfbarchartaxisDefaults\n"
+  xfbarchart_getaxisopt $xfW yaxis
+  set rtnval "$rtnval\n  $xfW yaxis configure $xfbarchartaxisDefaults\n"
+  xfbarchart_getaxisopt $xfW x2axis
+  set rtnval "$rtnval\n  $xfW x2axis configure $xfbarchartaxisDefaults\n"
+  xfbarchart_getaxisopt $xfW y2axis
+  set rtnval "$rtnval\n  $xfW y2axis configure $xfbarchartaxisDefaults\n"
+  xfbarchart_getlegendopt $xfW
+  set rtnval "$rtnval\n  $xfW legend configure $xfbarchartlegendDefaults\n"
+  xfbarchart_getxhairopt $xfW
+  set rtnval "$rtnval\n  $xfW crosshairs configure $xfbarchartxhairDefaults\n"
+  xfbarchart_getpsopt $xfW
+  set rtnval "$rtnval\n  $xfW postscript configure $xfbarchartpsDefaults\n"
+  return $rtnval
+}
+# procedure to show window xfbarchartshow.xfbarchartaxis
+proc xfbarchartshow.xfbarchartaxis { args} {
+  global xfBind
+
+  # build widget .xfbarchartaxis
+  catch "destroy .xfbarchartaxis"
+  toplevel .xfbarchartaxis   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartaxis ""
+  wm sizefrom .xfbarchartaxis ""
+  wm maxsize .xfbarchartaxis 1152 849
+  wm minsize .xfbarchartaxis 104 1
+  wm title .xfbarchartaxis {Barchart Axis Configuration Options}
+
+
+  # build widget .xfbarchartaxis.frame7
+  frame .xfbarchartaxis.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame22
+  frame .xfbarchartaxis.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame22.label21
+  label .xfbarchartaxis.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame22.label25
+  label .xfbarchartaxis.frame7.frame22.label25  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+
+  frame .xfbarchartaxis.frame7.frame200  -height {30}  -width {30}
+  label .xfbarchartaxis.frame7.frame200.label  -borderwidth {0}  -text {Autorange:} -width {16} -anchor e
+  entry .xfbarchartaxis.frame7.frame200.entry  -textvariable {xfbarchartaxisOptions(-autorange)}
+
+  # build widget .xfbarchartaxis.frame7.frame26
+  frame .xfbarchartaxis.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame26.label18
+  label .xfbarchartaxis.frame7.frame26.label18  -borderwidth {0}  -text {Titlefont:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame26.entry19
+  entry .xfbarchartaxis.frame7.frame26.entry19  -textvariable {xfbarchartaxisOptions(-titlefont)}
+
+  # bindings
+  bind .xfbarchartaxis.frame7.frame26.entry19 $xfBind(configure) {set xfbarchartnewval [XFFontBox $xfFile(fonts)]
+if {$xfbarchartnewval != ""} {set xfbarchartaxisOptions(-titlefont) $xfbarchartnewval}}
+
+  # build widget .xfbarchartaxis.frame7.frame27
+  frame .xfbarchartaxis.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame27.label18
+  label .xfbarchartaxis.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame27.entry19
+  entry .xfbarchartaxis.frame7.frame27.entry19  -textvariable {xfbarchartaxisOptions(-linewidth)}
+
+  # build widget .xfbarchartaxis.frame7.frame28
+  frame .xfbarchartaxis.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame28.label18
+  label .xfbarchartaxis.frame7.frame28.label18  -borderwidth {0}  -text {Max:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame28.entry19
+  entry .xfbarchartaxis.frame7.frame28.entry19  -textvariable {xfbarchartaxisOptions(-max)}
+
+  # build widget .xfbarchartaxis.frame7.frame29
+  frame .xfbarchartaxis.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame29.label18
+  label .xfbarchartaxis.frame7.frame29.label18  -borderwidth {0}  -text {Min:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame29.entry19
+  entry .xfbarchartaxis.frame7.frame29.entry19  -textvariable {xfbarchartaxisOptions(-min)}
+
+  # build widget .xfbarchartaxis.frame7.frame30
+  frame .xfbarchartaxis.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame30.label18
+  label .xfbarchartaxis.frame7.frame30.label18  -borderwidth {0}  -text {Rotate:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame30.entry19
+  entry .xfbarchartaxis.frame7.frame30.entry19  -textvariable {xfbarchartaxisOptions(-rotate)}
+
+  frame .xfbarchartaxis.frame7.frame201  -height {30}  -width {30}
+  label .xfbarchartaxis.frame7.frame201.label  -borderwidth {0}  -text {Shiftby:} -width {16} -anchor e
+  entry .xfbarchartaxis.frame7.frame201.entry  -textvariable {xfbarchartaxisOptions(-shiftby)}
+
+  # build widget .xfbarchartaxis.frame7.frame31
+  frame .xfbarchartaxis.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame31.label18
+  label .xfbarchartaxis.frame7.frame31.label18  -borderwidth {0}  -text {Stepsize:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame31.entry19
+  entry .xfbarchartaxis.frame7.frame31.entry19  -textvariable {xfbarchartaxisOptions(-stepsize)}
+
+  # build widget .xfbarchartaxis.frame7.frame32
+  frame .xfbarchartaxis.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame32.label18
+  label .xfbarchartaxis.frame7.frame32.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame32.entry19
+  entry .xfbarchartaxis.frame7.frame32.entry19  -textvariable {xfbarchartaxisOptions(-color)}
+  # bindings
+  bind .xfbarchartaxis.frame7.frame32.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartaxis]
+if {$xfbarchartnewval != ""} {set xfbarchartaxisOptions(-color) $xfbarchartnewval}}
+
+  # build widget .xfbarchartaxis.frame7.frame33
+  frame .xfbarchartaxis.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame33.label18
+  label .xfbarchartaxis.frame7.frame33.label18  -borderwidth {0}  -text {Subdivisions:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame33.entry19
+  entry .xfbarchartaxis.frame7.frame33.entry19  -textvariable {xfbarchartaxisOptions(-subdivisions)}
+
+  # build widget .xfbarchartaxis.frame7.frame34
+  frame .xfbarchartaxis.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame34.label18
+  label .xfbarchartaxis.frame7.frame34.label18  -borderwidth {0}  -text {Ticklength:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame34.entry19
+  entry .xfbarchartaxis.frame7.frame34.entry19  -textvariable {xfbarchartaxisOptions(-ticklength)}
+
+  # build widget .xfbarchartaxis.frame7.frame35
+  frame .xfbarchartaxis.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame35.label18
+  label .xfbarchartaxis.frame7.frame35.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame35.entry19
+  entry .xfbarchartaxis.frame7.frame35.entry19  -textvariable {xfbarchartaxisOptions(-title)}
+
+  # build widget .xfbarchartaxis.frame7.frame40
+  frame .xfbarchartaxis.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame40.label18
+  label .xfbarchartaxis.frame7.frame40.label18  -borderwidth {0}  -text {Descending:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame40.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartaxisOptions(-descending)}
+
+  # build widget .xfbarchartaxis.frame7.frame40.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartaxisOptions(-descending)}
+
+  # build widget .xfbarchartaxis.frame7.elemnames
+  frame .xfbarchartaxis.frame7.elemnames
+
+  # build widget .xfbarchartaxis.frame7.elemnames.label6
+  label .xfbarchartaxis.frame7.elemnames.label6  -borderwidth {0}  -text {Axis:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.elemnames.xaxis
+  radiobutton .xfbarchartaxis.frame7.elemnames.xaxis  -command {xfbarchart_getaxisopt $xfbarchart_path xaxis}  -text {xaxis}  -value {xaxis}  -variable {xfbarchartcuraxis}
+
+  # build widget .xfbarchartaxis.frame7.elemnames.xaxis3
+  radiobutton .xfbarchartaxis.frame7.elemnames.xaxis3  -command {xfbarchart_getaxisopt $xfbarchart_path yaxis}  -text {yaxis}  -value {yaxis}  -variable {xfbarchartcuraxis}
+
+  # build widget .xfbarchartaxis.frame7.elemnames.xaxis4
+  radiobutton .xfbarchartaxis.frame7.elemnames.xaxis4  -command {xfbarchart_getaxisopt $xfbarchart_path x2axis}  -text {x2axis}  -value {x2axis}  -variable {xfbarchartcuraxis}
+
+  # build widget .xfbarchartaxis.frame7.elemnames.xaxis5
+  radiobutton .xfbarchartaxis.frame7.elemnames.xaxis5  -command {xfbarchart_getaxisopt $xfbarchart_path y2axis}  -text {y2axis}  -value {y2axis}  -variable {xfbarchartcuraxis}
+
+  # build widget .xfbarchartaxis.frame7.frame6
+  frame .xfbarchartaxis.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame6.label18
+  label .xfbarchartaxis.frame7.frame6.label18  -borderwidth {0}  -text {Logscale:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame6.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame6.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartaxisOptions(-logscale)}
+
+  # build widget .xfbarchartaxis.frame7.frame6.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame6.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartaxisOptions(-logscale)}
+
+  # build widget .xfbarchartaxis.frame7.frame8
+  frame .xfbarchartaxis.frame7.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame8.label18
+  label .xfbarchartaxis.frame7.frame8.label18  -borderwidth {0}  -text {Loose:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame8.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame8.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartaxisOptions(-loose)}
+
+  # build widget .xfbarchartaxis.frame7.frame8.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame8.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartaxisOptions(-loose)}
+
+  # build widget .xfbarchartaxis.frame7.frame10
+  frame .xfbarchartaxis.frame7.frame10  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame10.label18
+  label .xfbarchartaxis.frame7.frame10.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame10.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame10.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartaxisOptions(-hide)}
+
+  # build widget .xfbarchartaxis.frame7.frame10.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame10.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartaxisOptions(-hide)}
+
+  # build widget .xfbarchartaxis.frame7.frame12
+  frame .xfbarchartaxis.frame7.frame12  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame12.label18
+  label .xfbarchartaxis.frame7.frame12.label18  -borderwidth {0}  -text {Showticks:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame12.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame12.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartaxisOptions(-showticks)}
+
+  # build widget .xfbarchartaxis.frame7.frame12.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame12.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartaxisOptions(-showticks)}
+
+  # build widget .xfbarchartaxis.frame7.frame15
+  frame .xfbarchartaxis.frame7.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame7.frame15.label18
+  label .xfbarchartaxis.frame7.frame15.label18  -borderwidth {0}  -text {Justify:}  -width {16} -anchor e
+
+  # build widget .xfbarchartaxis.frame7.frame15.radiobutton41
+  radiobutton .xfbarchartaxis.frame7.frame15.radiobutton41  -text {left}  -value {left}  -variable {xfbarchartaxisOptions(-justify)}
+
+  # build widget .xfbarchartaxis.frame7.frame15.radiobutton42
+  radiobutton .xfbarchartaxis.frame7.frame15.radiobutton42  -text {right}  -value {right}  -variable {xfbarchartaxisOptions(-justify)}
+
+  # build widget .xfbarchartaxis.frame7.frame15.radiobutton17
+  radiobutton .xfbarchartaxis.frame7.frame15.radiobutton17  -text {center}  -value {center}  -variable {xfbarchartaxisOptions(-justify)}
+
+  # build widget .xfbarchartaxis.frame8
+  frame .xfbarchartaxis.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame8.button9
+  button .xfbarchartaxis.frame8.button9  -command {xfbarchartcfg_gen $xfbarchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfbarchartaxis.frame8.button10
+  button .xfbarchartaxis.frame8.button10  -command {xfbarchartcfg_elem $xfbarchart_path}  -padx {11}  -pady {4}  -text {Elements}
+
+  # build widget .xfbarchartaxis.frame8.button11
+  button .xfbarchartaxis.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfbarchartaxis.frame8.button12
+  button .xfbarchartaxis.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfbarchartaxis.frame8.button13
+  button .xfbarchartaxis.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfbarchartaxis.frame15
+  frame .xfbarchartaxis.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartaxis.frame15.button9
+  button .xfbarchartaxis.frame15.button9  -command {set xfnewval "$xfbarchart_path $xfbarchartcuraxis configure"
+foreach xfitem [array names xfbarchartaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartaxisOptions($xfitem)]
+      }
+eval $xfnewval
+xfbarchartdestroy.xfbarchartaxis}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartaxis.frame15.button10
+  button .xfbarchartaxis.frame15.button10  -command {set xfnewval "$xfbarchart_path $xfbarchartcuraxis configure"
+foreach xfitem [array names xfbarchartaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartaxisOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartaxis.frame15.button12
+  button .xfbarchartaxis.frame15.button12  -command {eval "$xfbarchart_path $xfbarchartcuraxis configure $xfbarchartaxisDefaults"
+xfbarchartdestroy.xfbarchartaxis}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartaxis.frame15.checkbutton16
+  checkbutton .xfbarchartaxis.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartaxis.frame22
+  frame .xfbarchartaxis.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartaxis.frame22.label21
+  label .xfbarchartaxis.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfbarchartaxis.frame22.label25
+  label .xfbarchartaxis.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+
+  # pack master .xfbarchartaxis.frame7
+  pack configure .xfbarchartaxis.frame7.frame22  -fill x
+  pack configure .xfbarchartaxis.frame7.elemnames  -fill x
+
+  pack  .xfbarchartaxis.frame7.frame200 -fill x
+  pack  .xfbarchartaxis.frame7.frame200.label -side left
+  pack  .xfbarchartaxis.frame7.frame200.entry -expand 1 -fill x -side left
+
+  pack configure .xfbarchartaxis.frame7.frame32  -fill x
+  pack configure .xfbarchartaxis.frame7.frame40  -fill x
+  pack configure .xfbarchartaxis.frame7.frame15  -fill x
+  pack configure .xfbarchartaxis.frame7.frame27  -fill x
+  pack configure .xfbarchartaxis.frame7.frame6  -fill x
+  pack configure .xfbarchartaxis.frame7.frame8  -fill x
+  pack configure .xfbarchartaxis.frame7.frame10  -fill x
+  pack configure .xfbarchartaxis.frame7.frame28  -fill x
+  pack configure .xfbarchartaxis.frame7.frame29  -fill x
+  pack configure .xfbarchartaxis.frame7.frame30  -fill x
+
+  pack  .xfbarchartaxis.frame7.frame201 -fill x
+  pack  .xfbarchartaxis.frame7.frame201.label -side left
+  pack  .xfbarchartaxis.frame7.frame201.entry -expand 1 -fill x -side left
+
+  pack configure .xfbarchartaxis.frame7.frame12  -fill x
+  pack configure .xfbarchartaxis.frame7.frame31  -fill x
+  pack configure .xfbarchartaxis.frame7.frame33  -fill x
+  pack configure .xfbarchartaxis.frame7.frame34  -fill x
+  pack configure .xfbarchartaxis.frame7.frame35  -fill x
+  pack configure .xfbarchartaxis.frame7.frame26  -fill x
+
+  # pack master .xfbarchartaxis.frame7.frame22
+  pack configure .xfbarchartaxis.frame7.frame22.label21  -side left
+  pack configure .xfbarchartaxis.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfbarchartaxis.frame7.frame26
+  pack configure .xfbarchartaxis.frame7.frame26.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame27
+  pack configure .xfbarchartaxis.frame7.frame27.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame28
+  pack configure .xfbarchartaxis.frame7.frame28.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame29
+  pack configure .xfbarchartaxis.frame7.frame29.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame30
+  pack configure .xfbarchartaxis.frame7.frame30.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame31
+  pack configure .xfbarchartaxis.frame7.frame31.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame32
+  pack configure .xfbarchartaxis.frame7.frame32.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame33
+  pack configure .xfbarchartaxis.frame7.frame33.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame34
+  pack configure .xfbarchartaxis.frame7.frame34.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame35
+  pack configure .xfbarchartaxis.frame7.frame35.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame40
+  pack configure .xfbarchartaxis.frame7.frame40.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame40.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfbarchartaxis.frame7.elemnames
+  pack configure .xfbarchartaxis.frame7.elemnames.label6  -side left
+  pack configure .xfbarchartaxis.frame7.elemnames.xaxis  -side left
+  pack configure .xfbarchartaxis.frame7.elemnames.xaxis3  -side left
+  pack configure .xfbarchartaxis.frame7.elemnames.xaxis4  -side left
+  pack configure .xfbarchartaxis.frame7.elemnames.xaxis5  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame6
+  pack configure .xfbarchartaxis.frame7.frame6.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame6.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame6.radiobutton42  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame8
+  pack configure .xfbarchartaxis.frame7.frame8.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame8.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame8.radiobutton42  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame10
+  pack configure .xfbarchartaxis.frame7.frame10.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame10.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame10.radiobutton42  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame12
+  pack configure .xfbarchartaxis.frame7.frame12.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame12.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame12.radiobutton42  -side left
+
+  # pack master .xfbarchartaxis.frame7.frame15
+  pack configure .xfbarchartaxis.frame7.frame15.label18  -side left
+  pack configure .xfbarchartaxis.frame7.frame15.radiobutton41  -side left
+  pack configure .xfbarchartaxis.frame7.frame15.radiobutton42  -side left
+  pack configure .xfbarchartaxis.frame7.frame15.radiobutton17  -side left
+
+  # pack master .xfbarchartaxis.frame8
+  pack configure .xfbarchartaxis.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame15
+  pack configure .xfbarchartaxis.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartaxis.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartaxis.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartaxis.frame22
+  pack configure .xfbarchartaxis.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartaxis.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartaxis
+  pack configure .xfbarchartaxis.frame22  -fill x
+  pack configure .xfbarchartaxis.frame7  -expand 1  -fill both
+  pack configure .xfbarchartaxis.frame8  -fill x
+  pack configure .xfbarchartaxis.frame15  -fill x
+
+}
+
+proc xfbarchartdestroy.xfbarchartaxis {} {# xf ignore me 7
+    catch "destroy .xfbarchartaxis"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartconf
+proc xfbarchartshow.xfbarchartconf { args} {
+  global xfBind
+
+  # build widget .xfbarchartconf
+  catch "destroy .xfbarchartconf"
+  toplevel .xfbarchartconf 
+
+  # Window manager configurations
+
+  wm positionfrom .xfbarchartconf ""
+  wm sizefrom .xfbarchartconf ""
+  wm maxsize .xfbarchartconf 1156 849
+  wm minsize .xfbarchartconf 104 1
+  wm title .xfbarchartconf {Barchart Configure Tool}
+
+  # build widget .xfbarchartconf.cbutton_General
+  checkbutton .xfbarchartconf.cbutton_General  -command {ConfigureGeneral}  -text {General}  -variable {varGeneral}
+
+  # build widget .xfbarchartconf.cbutton_Element
+  checkbutton .xfbarchartconf.cbutton_Element  -command {ConfigureElement}  -text {Element}  -variable {varElement}
+
+  # build widget .xfbarchartconf.cbutton_Axis
+  checkbutton .xfbarchartconf.cbutton_Axis  -command {ConfigureAxis}  -text {Axis}  -variable {varAxis}
+
+  # build widget .xfbarchartconf.cbutton_Legend
+  checkbutton .xfbarchartconf.cbutton_Legend  -command {ConfigureLegend}  -text {Legend}  -variable {varLegend}
+
+  # build widget .xfbarchartconf.cbutton_Crosshairs
+  checkbutton .xfbarchartconf.cbutton_Crosshairs  -command {ConfigureCrosshairs}  -text {Crosshairs}  -variable {varCrosshairs}
+
+  # build widget .xfbarchartconf.cbutton_PostScript
+  checkbutton .xfbarchartconf.cbutton_PostScript  -command {ConfigurePostScript}  -text {PostScript}  -variable {varPostScript}
+
+  # build widget .xfbarchartconf.quit
+  button .xfbarchartconf.quit  -command {xfbarchartdestroy.xfbarchartconf}  -padx {11}  -pady {4}  -text {quit}
+
+  # build widget .xfbarchartconf.frame0
+  frame .xfbarchartconf.frame0  -borderwidth {2}  -height {30}  -relief {ridge}  -width {30}
+
+  # build widget .xfbarchartconf.frame0.label1
+  label .xfbarchartconf.frame0.label1  -background {steelblue}  -font {helvetica 12 bold}  -foreground {white}  -relief {groove}  -text {Path:}
+
+  # build widget .xfbarchartconf.frame0.entry2
+  entry .xfbarchartconf.frame0.entry2  -background {lightblue}  -font {helvetica 12 bold}
+
+  # pack master .xfbarchartconf.frame0
+  pack configure .xfbarchartconf.frame0.label1  -fill y  -side left
+  pack configure .xfbarchartconf.frame0.entry2  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartconf
+  pack configure .xfbarchartconf.frame0  -fill x
+  pack configure .xfbarchartconf.cbutton_General  -anchor w
+  pack configure .xfbarchartconf.cbutton_Element  -anchor w
+  pack configure .xfbarchartconf.cbutton_Axis  -anchor w
+  pack configure .xfbarchartconf.cbutton_Legend  -anchor w
+  pack configure .xfbarchartconf.cbutton_Crosshairs  -anchor w
+  pack configure .xfbarchartconf.cbutton_PostScript  -anchor w
+  pack configure .xfbarchartconf.quit
+
+  .xfbarchartconf.frame0.entry2 insert end {.frame0.xfbarchart0}
+}
+
+proc xfbarchartdestroy.xfbarchartconf {} {# xf ignore me 7
+    catch "destroy .xfbarchartconf"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartelem
+proc xfbarchartshow.xfbarchartelem { args} {
+  global xfBind
+
+  # build widget .xfbarchartelem
+  catch "destroy .xfbarchartelem"
+  toplevel .xfbarchartelem   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartelem ""
+  wm sizefrom .xfbarchartelem ""
+  wm maxsize .xfbarchartelem 1152 849
+  wm minsize .xfbarchartelem 104 1
+  wm title .xfbarchartelem {Barchart Element Configuration Options}
+
+  frame .xfbarchartelem.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+  label .xfbarchartelem.frame22.label21  -borderwidth {0}  -text {Widget path:}
+  label .xfbarchartelem.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+  pack configure .xfbarchartelem.frame22 -fill x
+
+  frame .xfbarchartelem.frame7 -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+  pack  .xfbarchartelem.frame7 -fill x
+
+  frame .xfbarchartelem.frame7.frame22  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame22.label1  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+  label .xfbarchartelem.frame7.frame22.label2  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+  pack  .xfbarchartelem.frame7.frame22  -fill x
+  pack  .xfbarchartelem.frame7.frame22.label1 -side left
+  pack  .xfbarchartelem.frame7.frame22.label2 -anchor w -pady 4
+
+  frame .xfbarchartelem.frame7.elemnames
+  label .xfbarchartelem.frame7.elemnames.label  -borderwidth {0}  -text {Elements:}  -width {16} -anchor e
+  pack  .xfbarchartelem.frame7.elemnames -fill x
+  pack  .xfbarchartelem.frame7.elemnames.label -side left
+
+  frame .xfbarchartelem.frame7.elemnames.frame
+  pack  .xfbarchartelem.frame7.elemnames.frame  -fill x
+
+  frame .xfbarchartelem.frame7.frame26  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame26.label18  -borderwidth {0}  -text {Activepen:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame26.entry19  -textvariable {xfbarchartelemOptions(-activepen)}
+  pack  .xfbarchartelem.frame7.frame26  -fill x
+  pack  .xfbarchartelem.frame7.frame26.label18 -side left
+  pack  .xfbarchartelem.frame7.frame26.entry19 -expand 1 -fill x  -side left
+
+  frame .xfbarchartelem.frame7.frame100 -height 30 -width 30
+  label .xfbarchartelem.frame7.frame100.label -borderwidth 0 -text {Background:} -width 16 -anchor e
+  entry .xfbarchartelem.frame7.frame100.entry -textvariable {xfbarchartelemOptions(-background)}
+  bind  .xfbarchartelem.frame7.frame100.entry $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartelem]
+  if {$xfbarchartnewval != ""} {set xfbarchartelemOptions(-background) $xfbarchartnewval}}
+  pack  .xfbarchartelem.frame7.frame100 -fill x
+  pack  .xfbarchartelem.frame7.frame100.label -side left
+  pack  .xfbarchartelem.frame7.frame100.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame29  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame29.label  -borderwidth {0}  -text {Barwidth:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame29.entry  -textvariable {xfbarchartelemOptions(-barwidth)}
+  pack  .xfbarchartelem.frame7.frame29 -fill x
+  pack  .xfbarchartelem.frame7.frame29.label -side left
+  pack  .xfbarchartelem.frame7.frame29.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame30  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame30.label  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame30.entry  -textvariable {xfbarchartelemOptions(-borderwidth)}
+  pack  .xfbarchartelem.frame7.frame30 -fill x
+  pack  .xfbarchartelem.frame7.frame30.label -side left
+  pack  .xfbarchartelem.frame7.frame30.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame31 -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame31.label  -borderwidth {0}  -text {Foreground:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame31.entry  -textvariable {xfbarchartelemOptions(-foreground)}
+  bind  .xfbarchartelem.frame7.frame31.entry $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartelem]
+  if {$xfbarchartnewval != ""} {set xfbarchartelemOptions(-foreground) $xfbarchartnewval}}
+  pack  .xfbarchartelem.frame7.frame31 -fill x
+  pack  .xfbarchartelem.frame7.frame31.label -side left
+  pack  .xfbarchartelem.frame7.frame31.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame48  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame48.label  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+  radiobutton .xfbarchartelem.frame7.frame48.radiobutton1 -text {Yes} -value {1} -variable {xfbarchartelemOptions(-hide)}
+  radiobutton .xfbarchartelem.frame7.frame48.radiobutton2 -text {No}  -value {0} -variable {xfbarchartelemOptions(-hide)}
+  pack  .xfbarchartelem.frame7.frame48 -fill x
+  pack  .xfbarchartelem.frame7.frame48.label -side left
+  pack  .xfbarchartelem.frame7.frame48.radiobutton1 -side left
+  pack  .xfbarchartelem.frame7.frame48.radiobutton2 -side left
+
+  frame .xfbarchartelem.frame7.frame33  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame33.label  -borderwidth {0}  -text {Label:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame33.entry  -textvariable {xfbarchartelemOptions(-label)}
+  pack  .xfbarchartelem.frame7.frame33 -fill x
+  pack  .xfbarchartelem.frame7.frame33.label -side left
+  pack  .xfbarchartelem.frame7.frame33.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame34 -height {30}  -width {30}
+  pack  .xfbarchartelem.frame7.frame34 -fill x
+
+  frame .xfbarchartelem.frame7.frame52  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame52.label  -borderwidth {0}  -text {Mapx:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame52.entry  -textvariable {xfbarchartelemOptions(-mapx)}
+  pack  .xfbarchartelem.frame7.frame52 -fill x
+  pack  .xfbarchartelem.frame7.frame52.label -side left
+  pack  .xfbarchartelem.frame7.frame52.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame101  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame101.label -borderwidth {0}  -text {Mapy:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame101.entry -textvariable {xfbarchartelemOptions(-mapy)}
+  pack  .xfbarchartelem.frame7.frame101 -fill x
+  pack  .xfbarchartelem.frame7.frame101.label -side left
+  pack  .xfbarchartelem.frame7.frame101.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame21  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame21.label  -borderwidth {0}  -pady 0 -text {Relief:} -width {16} -anchor e
+  radiobutton .xfbarchartelem.frame7.frame21.radiobutton1  -highlightthickness {0}  -pady {0}  -text {Raised}  -value {raised}  -variable {xfbarchartelemOptions(-relief)} -width {7} -anchor w
+  radiobutton .xfbarchartelem.frame7.frame21.radiobutton2  -highlightthickness {0}  -pady {0}  -text {Sunken}  -value {sunken}  -variable {xfbarchartelemOptions(-relief)}  -width {7} -anchor w
+  radiobutton .xfbarchartelem.frame7.frame21.radiobutton3  -highlightthickness {0}  -pady {0}  -text {Flat}  -value {flat}  -variable {xfbarchartelemOptions(-relief)}  -width {7} -anchor w
+  pack  .xfbarchartelem.frame7.frame21 -fill x
+  pack  .xfbarchartelem.frame7.frame21.label -side left
+  pack  .xfbarchartelem.frame7.frame21.radiobutton1 -side left
+  pack  .xfbarchartelem.frame7.frame21.radiobutton2 -side left
+  pack  .xfbarchartelem.frame7.frame21.radiobutton3 -side left
+
+  frame .xfbarchartelem.frame7.frame36 -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame36.label  -borderwidth {0}  -pady {0} -width {16}
+  radiobutton .xfbarchartelem.frame7.frame36.radiobutton1  -highlightthickness {0}  -pady {0}  -text {Ridge}  -value {ridge}  -variable {xfbarchartelemOptions(-relief)}  -width {7} -anchor w
+  radiobutton .xfbarchartelem.frame7.frame36.radiobutton2  -highlightthickness {0}  -pady {0}  -text {Groove}  -value {groove}  -variable {xfbarchartelemOptions(-relief)}  -width {7} -anchor w
+  pack  .xfbarchartelem.frame7.frame36 -fill x
+  pack  .xfbarchartelem.frame7.frame36.label -side left
+  pack  .xfbarchartelem.frame7.frame36.radiobutton1 -side left
+  pack  .xfbarchartelem.frame7.frame36.radiobutton2 -side left
+
+  frame .xfbarchartelem.frame7.frame37  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame37.label  -borderwidth {0}  -text {Stipple:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame37.entry  -textvariable {xfbarchartelemOptions(-stipple)}
+  pack  .xfbarchartelem.frame7.frame37 -fill x
+  pack  .xfbarchartelem.frame7.frame37.label -side left
+  pack  .xfbarchartelem.frame7.frame37.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame39  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame39.label  -borderwidth {0}  -text {Xdata:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame39.entry  -textvariable {xfbarchartelemOptions(-xdata)}
+  pack  .xfbarchartelem.frame7.frame39 -fill x
+  pack  .xfbarchartelem.frame7.frame39.label -side left
+  pack  .xfbarchartelem.frame7.frame39.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame7.frame38  -height {30}  -width {30}
+  label .xfbarchartelem.frame7.frame38.label  -borderwidth {0}  -text {Ydata:}  -width {16} -anchor e
+  entry .xfbarchartelem.frame7.frame38.entry  -textvariable {xfbarchartelemOptions(-ydata)}
+  pack  .xfbarchartelem.frame7.frame38 -fill x
+  pack  .xfbarchartelem.frame7.frame38.label -side left
+  pack  .xfbarchartelem.frame7.frame38.entry -expand 1 -fill x -side left
+
+  frame .xfbarchartelem.frame8  -height {30}  -width {30}
+  button .xfbarchartelem.frame8.button9  -command {xfbarchartcfg_gen $xfbarchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  button .xfbarchartelem.frame8.button10  -command {xfbarchartcfg_axis $xfbarchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  button .xfbarchartelem.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  button .xfbarchartelem.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  button .xfbarchartelem.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  frame .xfbarchartelem.frame15  -height {30}  -width {30}
+
+  button .xfbarchartelem.frame15.button9  -command {set xfnewval "$xfbarchart_path element configure $xfbarchartcurelem"
+foreach xfitem [lsort [array names xfbarchartelemOptions]] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartelemOptions($xfitem)]
+      }
+eval $xfnewval
+xfbarchartdestroy.xfbarchartelem}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartelem.frame15.button10
+  button .xfbarchartelem.frame15.button10  -command {if {$xfbarchartcurelem != ""} {
+	set xfnewval "$xfbarchart_path element configure $xfbarchartcurelem"
+	foreach xfitem [lsort [array names xfbarchartelemOptions]] {
+		lappend xfnewval $xfitem
+		lappend xfnewval [string trim $xfbarchartelemOptions($xfitem)]
+	      }
+	eval $xfnewval
+   }}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartelem.frame15.button12
+  button .xfbarchartelem.frame15.button12  -command {if {$xfbarchartcurelem != ""} {
+	eval "$xfbarchart_path element configure $xfbarchartcurelem $xfbarchartelemDefaults"
+   }
+xfbarchartdestroy.xfbarchartelem}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartelem.frame15.checkbutton16
+  checkbutton .xfbarchartelem.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartelem.frame0
+  frame .xfbarchartelem.frame0  -height {30}  -width {30}
+
+  # build widget .xfbarchartelem.frame0.button3
+  button .xfbarchartelem.frame0.button3  -command {set elemlist [$xfbarchart_path element names]
+set ctr [llength $elemlist]
+incr ctr
+while {[lsearch $elemlist $ctr] != -1} {
+	incr ctr
+      }
+$xfbarchart_path element create $ctr
+xfbarchartcfg_elem $xfbarchart_path}  -padx {11}  -pady {4}  -text {Add Element}
+
+  # build widget .xfbarchartelem.frame0.button2
+  button .xfbarchartelem.frame0.button2  -command {if {$xfbarchartcurelem != ""} {
+    $xfbarchart_path element delete $xfbarchartcurelem
+    xfbarchartcfg_elem $xfbarchart_path
+   }}  -padx {11}  -pady {4}  -text {Delete Element}
+
+  # pack master .xfbarchartelem.frame8
+  pack configure .xfbarchartelem.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartelem.frame15
+  pack configure .xfbarchartelem.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartelem.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartelem.frame22
+  pack configure .xfbarchartelem.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartelem.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartelem.frame0
+  pack configure .xfbarchartelem.frame0.button3  -expand 1  -fill x  -side left
+  pack configure .xfbarchartelem.frame0.button2  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartelem
+  pack configure .xfbarchartelem.frame8  -fill x
+  pack configure .xfbarchartelem.frame0  -fill x
+  pack configure .xfbarchartelem.frame15  -fill x
+}
+
+proc xfbarchartdestroy.xfbarchartelem {} {
+     catch "destroy .xfbarchartelem"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartgen
+proc xfbarchartshow.xfbarchartgen { args} {
+  global xfBind
+
+  # build widget .xfbarchartgen
+  catch "destroy .xfbarchartgen"
+  toplevel .xfbarchartgen   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartgen ""
+  wm sizefrom .xfbarchartgen ""
+  wm maxsize .xfbarchartgen 1152 849
+  wm minsize .xfbarchartgen 104 10
+  wm title .xfbarchartgen {Barchart Parameters}
+
+
+  # build widget .xfbarchartgen.frame7
+  frame .xfbarchartgen.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame17
+  frame .xfbarchartgen.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame17.label18
+  label .xfbarchartgen.frame7.frame17.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame17.entry19
+  entry .xfbarchartgen.frame7.frame17.entry19  -textvariable {xfbarchart(-background)}
+  # bindings
+  bind .xfbarchartgen.frame7.frame17.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartgen]
+if {$xfbarchartnewval != ""} {set xfbarchart(-background) $xfbarchartnewval}}
+
+  # build widget .xfbarchartgen.frame7.frame26
+  frame .xfbarchartgen.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame26.label18
+  label .xfbarchartgen.frame7.frame26.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame26.entry19
+  entry .xfbarchartgen.frame7.frame26.entry19  -textvariable {xfbarchart(-borderwidth)}
+
+  # build widget .xfbarchartgen.frame7.frame27
+  frame .xfbarchartgen.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame27.label18
+  label .xfbarchartgen.frame7.frame27.label18  -borderwidth {0}  -text {Bottommargin:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame27.entry19
+  entry .xfbarchartgen.frame7.frame27.entry19  -textvariable {xfbarchart(-bottommargin)}
+
+  # build widget .xfbarchartgen.frame7.frame28
+  frame .xfbarchartgen.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame28.label18
+  label .xfbarchartgen.frame7.frame28.label18  -borderwidth {0}  -text {Cursor:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame28.entry19
+  entry .xfbarchartgen.frame7.frame28.entry19  -textvariable {xfbarchart(-cursor)}
+  # bindings
+  bind .xfbarchartgen.frame7.frame28.entry19 $xfBind(configure) {set xfnewval [CursorBox $xfFile(cursors)]
+if {$xfnewval != ""} {set xfbarchart(-cursor) $xfnewval}}
+
+  # build widget .xfbarchartgen.frame7.frame29
+  frame .xfbarchartgen.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame29.label18
+  label .xfbarchartgen.frame7.frame29.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame29.entry19
+  entry .xfbarchartgen.frame7.frame29.entry19  -textvariable {xfbarchart(-font)}
+  # bindings
+  bind .xfbarchartgen.frame7.frame29.entry19 $xfBind(configure) {set xfbarchart(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfbarchartgen.frame7.frame30
+  frame .xfbarchartgen.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame30.label18
+  label .xfbarchartgen.frame7.frame30.label18  -borderwidth {0}  -text {Foreground:} -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame30.entry19
+  entry .xfbarchartgen.frame7.frame30.entry19  -textvariable {xfbarchart(-foreground)}
+  # bindings
+  bind .xfbarchartgen.frame7.frame30.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartgen]
+if {$xfbarchartnewval != ""} {set xfbarchart(-foreground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartgen.frame7.frame31
+  frame .xfbarchartgen.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame31.label18
+  label .xfbarchartgen.frame7.frame31.label18  -borderwidth {0}  -text {Halo:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame31.entry19
+  entry .xfbarchartgen.frame7.frame31.entry19  -textvariable {xfbarchart(-halo)}
+
+  # build widget .xfbarchartgen.frame7.frame32
+  frame .xfbarchartgen.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame32.label18
+  label .xfbarchartgen.frame7.frame32.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame32.entry19
+  entry .xfbarchartgen.frame7.frame32.entry19  -textvariable {xfbarchart(-height)}
+
+  # build widget .xfbarchartgen.frame7.frame33
+  frame .xfbarchartgen.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame33.label18
+  label .xfbarchartgen.frame7.frame33.label18  -borderwidth {0}  -text {Leftmargin:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame33.entry19
+  entry .xfbarchartgen.frame7.frame33.entry19  -textvariable {xfbarchart(-leftmargin)}
+
+  # build widget .xfbarchartgen.frame7.frame34
+  frame .xfbarchartgen.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame34.label18
+  label .xfbarchartgen.frame7.frame34.label18  -borderwidth {0}  -text {Plotbackground:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame34.entry19
+  entry .xfbarchartgen.frame7.frame34.entry19  -textvariable {xfbarchart(-plotbackground)}
+  # bindings
+  bind .xfbarchartgen.frame7.frame34.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartgen]
+if {$xfbarchartnewval != ""} {set xfbarchart(-plotbackground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartgen.frame7.frame35
+  frame .xfbarchartgen.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame35.label18
+  label .xfbarchartgen.frame7.frame35.label18  -borderwidth {0}  -text {Plotborderwidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame35.entry19
+  entry .xfbarchartgen.frame7.frame35.entry19  -textvariable {xfbarchart(-plotborderwidth)}
+
+  # build widget .xfbarchartgen.frame7.frame36
+  frame .xfbarchartgen.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame36.label18
+  label .xfbarchartgen.frame7.frame36.label18  -borderwidth {0}  -text {Rightmargin:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame36.entry19
+  entry .xfbarchartgen.frame7.frame36.entry19  -textvariable {xfbarchart(-rightmargin)}
+
+  # build widget .xfbarchartgen.frame7.frame37
+  frame .xfbarchartgen.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame37.label18
+  label .xfbarchartgen.frame7.frame37.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame37.entry19
+  entry .xfbarchartgen.frame7.frame37.entry19  -textvariable {xfbarchart(-title)}
+
+  # build widget .xfbarchartgen.frame7.frame38
+  frame .xfbarchartgen.frame7.frame38  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame38.label18
+  label .xfbarchartgen.frame7.frame38.label18  -borderwidth {0}  -text {Topmargin:}  -width {16}  -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame38.entry19
+  entry .xfbarchartgen.frame7.frame38.entry19  -textvariable {xfbarchart(-topmargin)}
+
+  # build widget .xfbarchartgen.frame7.frame39
+  frame .xfbarchartgen.frame7.frame39  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame39.label18
+  label .xfbarchartgen.frame7.frame39.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame39.entry19
+  entry .xfbarchartgen.frame7.frame39.entry19  -textvariable {xfbarchart(-width)}
+
+  # build widget .xfbarchartgen.frame7.frame40
+  frame .xfbarchartgen.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame40.label18
+  label .xfbarchartgen.frame7.frame40.label18  -borderwidth {0}  -text {Bufferlelements:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame40.radiobutton41
+  radiobutton .xfbarchartgen.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfbarchart(-bufferelements)}
+
+  # build widget .xfbarchartgen.frame7.frame40.radiobutton42
+  radiobutton .xfbarchartgen.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfbarchart(-bufferelements)}
+
+  # build widget .xfbarchartgen.frame7.frame43
+  frame .xfbarchartgen.frame7.frame43  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame43.label18
+  label .xfbarchartgen.frame7.frame43.label18  -borderwidth {0}  -text {Invertxy:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame43.radiobutton41
+  radiobutton .xfbarchartgen.frame7.frame43.radiobutton41  -text {true}  -value {1}  -variable {xfbarchart(-invertxy)}
+
+  # build widget .xfbarchartgen.frame7.frame43.radiobutton42
+  radiobutton .xfbarchartgen.frame7.frame43.radiobutton42  -text {false}  -value {0}  -variable {xfbarchart(-invertxy)}
+
+  # build widget .xfbarchartgen.frame7.frame44
+  frame .xfbarchartgen.frame7.frame44  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame44.label18
+  label .xfbarchartgen.frame7.frame44.label18  -borderwidth {0}  -text {Plotrelief:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame44.radiobutton41
+  radiobutton .xfbarchartgen.frame7.frame44.radiobutton41  -text {raised}  -value {raised}  -variable {xfbarchart(-plotrelief)}
+
+  # build widget .xfbarchartgen.frame7.frame44.radiobutton42
+  radiobutton .xfbarchartgen.frame7.frame44.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfbarchart(-plotrelief)}
+
+  # build widget .xfbarchartgen.frame7.frame44.radiobutton45
+  radiobutton .xfbarchartgen.frame7.frame44.radiobutton45  -text {flat}  -value {flat}  -variable {xfbarchart(-plotrelief)}
+
+  # build widget .xfbarchartgen.frame7.frame44.radiobutton46
+  radiobutton .xfbarchartgen.frame7.frame44.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfbarchart(-plotrelief)}
+
+  # build widget .xfbarchartgen.frame7.frame44.radiobutton47
+  radiobutton .xfbarchartgen.frame7.frame44.radiobutton47  -text {groove}  -value {groove}  -variable {xfbarchart(-plotrelief)}
+
+  # build widget .xfbarchartgen.frame7.frame48
+  frame .xfbarchartgen.frame7.frame48  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame48.label18
+  label .xfbarchartgen.frame7.frame48.label18  -borderwidth {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame48.radiobutton41
+  radiobutton .xfbarchartgen.frame7.frame48.radiobutton41  -text {raised}  -value {raised}  -variable {xfbarchart(-relief)}
+
+  # build widget .xfbarchartgen.frame7.frame48.radiobutton42
+  radiobutton .xfbarchartgen.frame7.frame48.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfbarchart(-relief)}
+
+  # build widget .xfbarchartgen.frame7.frame48.radiobutton45
+  radiobutton .xfbarchartgen.frame7.frame48.radiobutton45  -text {flat}  -value {flat}  -variable {xfbarchart(-relief)}
+
+  # build widget .xfbarchartgen.frame7.frame48.radiobutton46
+  radiobutton .xfbarchartgen.frame7.frame48.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfbarchart(-relief)}
+
+  # build widget .xfbarchartgen.frame7.frame48.radiobutton47
+  radiobutton .xfbarchartgen.frame7.frame48.radiobutton47  -text {groove}  -value {groove}  -variable {xfbarchart(-relief)}
+
+  # build widget .xfbarchartgen.frame7.frame1
+  frame .xfbarchartgen.frame7.frame1  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame7.frame1.label21
+  label .xfbarchartgen.frame7.frame1.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfbarchartgen.frame7.frame1.label25
+  label .xfbarchartgen.frame7.frame1.label25  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+
+  # build widget .xfbarchartgen.frame8
+  frame .xfbarchartgen.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame8.button9
+  button .xfbarchartgen.frame8.button9  -command {xfbarchartcfg_elem $xfbarchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfbarchartgen.frame8.button10
+  button .xfbarchartgen.frame8.button10  -command {xfbarchartcfg_axis $xfbarchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfbarchartgen.frame8.button11
+  button .xfbarchartgen.frame8.button11  -command {xfbarchartcfg_legend $xfbarchart_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfbarchartgen.frame8.button12
+  button .xfbarchartgen.frame8.button12  -command {xfbarchartcfg_xhair $xfbarchart_path}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfbarchartgen.frame8.button13
+  button .xfbarchartgen.frame8.button13  -command {xfbarchartcfg_ps $xfbarchart_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfbarchartgen.frame14
+  frame .xfbarchartgen.frame14  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame14.button9
+  button .xfbarchartgen.frame14.button9  -padx {11}  -pady {4}  -text {Special}
+
+  # build widget .xfbarchartgen.frame14.button10
+  button .xfbarchartgen.frame14.button10  -command {XFProcConfParametersGeneral $xfbarchart_path}  -padx {11}  -pady {4}  -text {General}
+
+  # build widget .xfbarchartgen.frame14.button11
+  button .xfbarchartgen.frame14.button11  -command {XFProcConfGeometryDefault $xfbarchart_parent}  -padx {11}  -pady {4}  -text {Geometry}
+
+  # build widget .xfbarchartgen.frame14.button12
+  button .xfbarchartgen.frame14.button12  -command {XFProcConfBinding $xfbarchart_path}  -padx {11}  -pady {4}  -text {Binding}
+
+  # build widget .xfbarchartgen.frame15
+  frame .xfbarchartgen.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartgen.frame15.button9
+  button .xfbarchartgen.frame15.button9  -command {set xfbarchartDefaults ""
+foreach xfitem [array names xfbarchart] {
+	lappend xfbarchartDefaults $xfitem
+	lappend xfbarchartDefaults [string trim $xfbarchart($xfitem)]
+      }
+eval "$xfbarchart_path configure $xfbarchartDefaults"
+xfbarchartdestroy.xfbarchartgen}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartgen.frame15.button10
+  button .xfbarchartgen.frame15.button10  -command {set xfnewval "$xfbarchart_path configure"
+foreach xfitem [array names xfbarchart] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchart($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartgen.frame15.button12
+  button .xfbarchartgen.frame15.button12  -command {eval "$xfbarchart_path configure $xfbarchartDefaults"
+xfbarchartdestroy.xfbarchartgen}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartgen.frame15.checkbutton16
+  checkbutton .xfbarchartgen.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartgen.frame22
+  frame .xfbarchartgen.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartgen.frame22.label21
+  label .xfbarchartgen.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfbarchartgen.frame22.label25
+  label .xfbarchartgen.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+
+  # pack master .xfbarchartgen.frame7
+  pack configure .xfbarchartgen.frame7.frame1  -fill x
+  pack configure .xfbarchartgen.frame7.frame17  -fill x
+  pack configure .xfbarchartgen.frame7.frame26  -fill x
+  pack configure .xfbarchartgen.frame7.frame27  -fill x
+  pack configure .xfbarchartgen.frame7.frame40  -fill x
+  pack configure .xfbarchartgen.frame7.frame28  -fill x
+  pack configure .xfbarchartgen.frame7.frame29  -fill x
+  pack configure .xfbarchartgen.frame7.frame30  -fill x
+  pack configure .xfbarchartgen.frame7.frame31  -fill x
+  pack configure .xfbarchartgen.frame7.frame32  -fill x
+  pack configure .xfbarchartgen.frame7.frame43  -fill x
+  pack configure .xfbarchartgen.frame7.frame33  -fill x
+  pack configure .xfbarchartgen.frame7.frame34  -fill x
+  pack configure .xfbarchartgen.frame7.frame35  -fill x
+  pack configure .xfbarchartgen.frame7.frame44  -fill x
+  pack configure .xfbarchartgen.frame7.frame48  -fill x
+  pack configure .xfbarchartgen.frame7.frame36  -fill x
+  pack configure .xfbarchartgen.frame7.frame37  -fill x
+  pack configure .xfbarchartgen.frame7.frame38  -fill x
+  pack configure .xfbarchartgen.frame7.frame39  -fill x
+
+  # pack master .xfbarchartgen.frame7.frame17
+  pack configure .xfbarchartgen.frame7.frame17.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame26
+  pack configure .xfbarchartgen.frame7.frame26.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame27
+  pack configure .xfbarchartgen.frame7.frame27.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame28
+  pack configure .xfbarchartgen.frame7.frame28.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame29
+  pack configure .xfbarchartgen.frame7.frame29.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame30
+  pack configure .xfbarchartgen.frame7.frame30.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame31
+  pack configure .xfbarchartgen.frame7.frame31.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame32
+  pack configure .xfbarchartgen.frame7.frame32.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame33
+  pack configure .xfbarchartgen.frame7.frame33.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame34
+  pack configure .xfbarchartgen.frame7.frame34.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame35
+  pack configure .xfbarchartgen.frame7.frame35.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame36
+  pack configure .xfbarchartgen.frame7.frame36.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame36.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame37
+  pack configure .xfbarchartgen.frame7.frame37.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame38
+  pack configure .xfbarchartgen.frame7.frame38.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame38.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame39
+  pack configure .xfbarchartgen.frame7.frame39.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame39.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame7.frame40
+  pack configure .xfbarchartgen.frame7.frame40.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame40.radiobutton41  -side left
+  pack configure .xfbarchartgen.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfbarchartgen.frame7.frame43
+  pack configure .xfbarchartgen.frame7.frame43.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame43.radiobutton41  -side left
+  pack configure .xfbarchartgen.frame7.frame43.radiobutton42  -side left
+
+  # pack master .xfbarchartgen.frame7.frame44
+  pack configure .xfbarchartgen.frame7.frame44.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame44.radiobutton41  -side left
+  pack configure .xfbarchartgen.frame7.frame44.radiobutton42  -side left
+  pack configure .xfbarchartgen.frame7.frame44.radiobutton45  -side left
+  pack configure .xfbarchartgen.frame7.frame44.radiobutton46  -side left
+  pack configure .xfbarchartgen.frame7.frame44.radiobutton47  -side left
+
+  # pack master .xfbarchartgen.frame7.frame48
+  pack configure .xfbarchartgen.frame7.frame48.label18  -side left
+  pack configure .xfbarchartgen.frame7.frame48.radiobutton41  -side left
+  pack configure .xfbarchartgen.frame7.frame48.radiobutton42  -side left
+  pack configure .xfbarchartgen.frame7.frame48.radiobutton45  -side left
+  pack configure .xfbarchartgen.frame7.frame48.radiobutton46  -side left
+  pack configure .xfbarchartgen.frame7.frame48.radiobutton47  -side left
+
+  # pack master .xfbarchartgen.frame7.frame1
+  pack configure .xfbarchartgen.frame7.frame1.label21  -side left
+  pack configure .xfbarchartgen.frame7.frame1.label25  -anchor w  -pady 4
+
+  # pack master .xfbarchartgen.frame8
+  pack configure .xfbarchartgen.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame14
+  pack configure .xfbarchartgen.frame14.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame14.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame14.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame14.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame15
+  pack configure .xfbarchartgen.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartgen.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartgen.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartgen.frame22
+  pack configure .xfbarchartgen.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartgen.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartgen
+  pack configure .xfbarchartgen.frame22  -fill x
+  pack configure .xfbarchartgen.frame7  -expand 1  -fill both
+  pack configure .xfbarchartgen.frame8  -fill x
+  pack configure .xfbarchartgen.frame14  -fill x
+  pack configure .xfbarchartgen.frame15  -fill x
+}
+
+proc xfbarchartdestroy.xfbarchartgen {} {
+     catch "destroy .xfbarchartgen"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartlegend
+proc xfbarchartshow.xfbarchartlegend { args} {
+  global xfBind
+
+  # build widget .xfbarchartlegend
+  catch "destroy .xfbarchartlegend"
+  toplevel .xfbarchartlegend   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartlegend ""
+  wm sizefrom .xfbarchartlegend ""
+  wm maxsize .xfbarchartlegend 1152 849
+  wm minsize .xfbarchartlegend 104 1
+  wm title .xfbarchartlegend {Barchart Legend Configuration Options}
+
+
+  # build widget .xfbarchartlegend.frame7
+  frame .xfbarchartlegend.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame17
+  frame .xfbarchartlegend.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame17.label18
+  label .xfbarchartlegend.frame7.frame17.label18  -borderwidth {0}  -text {Activebackground:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame17.entry19
+  entry .xfbarchartlegend.frame7.frame17.entry19  -textvariable {xfbarchartlegendOptions(-activebackground)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame17.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-activebackground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame22
+  frame .xfbarchartlegend.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame22.label21
+  label .xfbarchartlegend.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame22.label25
+  label .xfbarchartlegend.frame7.frame22.label25  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+
+  # build widget .xfbarchartlegend.frame7.frame26
+  frame .xfbarchartlegend.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame26.label18
+  label .xfbarchartlegend.frame7.frame26.label18  -borderwidth {0}  -text {Activeborderwidth:}  -width {16}
+
+  # build widget .xfbarchartlegend.frame7.frame26.entry19
+  entry .xfbarchartlegend.frame7.frame26.entry19  -textvariable {xfbarchartlegendOptions(-activeborderwidth)}
+
+  # build widget .xfbarchartlegend.frame7.frame27
+  frame .xfbarchartlegend.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame27.label18
+  label .xfbarchartlegend.frame7.frame27.label18  -borderwidth {0}  -text {Activeforeground:}  -width {16} -anchor e
+  # bindings
+  bind .xfbarchartlegend.frame7.frame27.label18 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-activeforeground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame27.entry19
+  entry .xfbarchartlegend.frame7.frame27.entry19  -textvariable {xfbarchartlegendOptions(-activeforeground)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame27.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-activeforeground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame28
+  frame .xfbarchartlegend.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame28.label18
+  label .xfbarchartlegend.frame7.frame28.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame28.entry19
+  entry .xfbarchartlegend.frame7.frame28.entry19  -textvariable {xfbarchartlegendOptions(-background)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame28.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-background) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame29
+  frame .xfbarchartlegend.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame29.label18
+  label .xfbarchartlegend.frame7.frame29.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame29.entry19
+  entry .xfbarchartlegend.frame7.frame29.entry19  -textvariable {xfbarchartelemOptions(-outlinewidth)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame29.entry19 $xfBind(configure) {set xfbarchart(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfbarchartlegend.frame7.frame30
+  frame .xfbarchartlegend.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame30.label18
+  label .xfbarchartlegend.frame7.frame30.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+  # bindings
+  bind .xfbarchartlegend.frame7.frame30.label18 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-font) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame30.entry19
+  entry .xfbarchartlegend.frame7.frame30.entry19  -textvariable {xfbarchartlegendOptions(-font)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame30.entry19 $xfBind(configure) {set xfbarchartnewval [XFFontBox $xfFile(fonts)]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-font) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame31
+  frame .xfbarchartlegend.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame31.label18
+  label .xfbarchartlegend.frame7.frame31.label18  -borderwidth {0}  -text {Foreground:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame31.entry19
+  entry .xfbarchartlegend.frame7.frame31.entry19  -textvariable {xfbarchartlegendOptions(-foreground)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame31.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-foreground) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame34
+  frame .xfbarchartlegend.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame34.label18
+  label .xfbarchartlegend.frame7.frame34.label18  -borderwidth {0}  -text {Ipadx:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame34.entry19
+  entry .xfbarchartlegend.frame7.frame34.entry19  -textvariable {xfbarchartlegendOptions(-ipadx)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame34.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-ipadx) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame35
+  frame .xfbarchartlegend.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame35.label18
+  label .xfbarchartlegend.frame7.frame35.label18  -borderwidth {0}  -text {Ipady:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame35.entry19
+  entry .xfbarchartlegend.frame7.frame35.entry19  -textvariable {xfbarchartlegendOptions(-ipady)}
+
+  # build widget .xfbarchartlegend.frame7.frame37
+  frame .xfbarchartlegend.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame37.label18
+  label .xfbarchartlegend.frame7.frame37.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame37.entry19
+  entry .xfbarchartlegend.frame7.frame37.entry19  -textvariable {xfbarchartlegendOptions(-position)}
+
+  # build widget .xfbarchartlegend.frame7.frame40
+  frame .xfbarchartlegend.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame40.label18
+  label .xfbarchartlegend.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame40.radiobutton41
+  radiobutton .xfbarchartlegend.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartlegendOptions(-hide)}
+
+  # build widget .xfbarchartlegend.frame7.frame40.radiobutton42
+  radiobutton .xfbarchartlegend.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartlegendOptions(-hide)}
+
+  # build widget .xfbarchartlegend.frame7.frame14
+  frame .xfbarchartlegend.frame7.frame14  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame14.label18
+  label .xfbarchartlegend.frame7.frame14.label18  -borderwidth {0}  -text {Raised:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame14.radiobutton41
+  radiobutton .xfbarchartlegend.frame7.frame14.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartlegendOptions(-raised)}
+
+  # build widget .xfbarchartlegend.frame7.frame14.radiobutton42
+  radiobutton .xfbarchartlegend.frame7.frame14.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartlegendOptions(-raised)}
+
+  # build widget .xfbarchartlegend.frame7.frame21
+  frame .xfbarchartlegend.frame7.frame21  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame21.label18
+  label .xfbarchartlegend.frame7.frame21.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfbarchartlegend.frame7.frame21.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame21.radiobutton23  -highlightthickness {0}  -pady {0}  -text {nw}  -value {nw}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame21.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame21.radiobutton26  -highlightthickness {0}  -pady {0}  -text {n}  -value {n}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame21.radiobutton0
+  radiobutton .xfbarchartlegend.frame7.frame21.radiobutton0  -highlightthickness {0}  -pady {0}  -text {ne}  -value {ne}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame36
+  frame .xfbarchartlegend.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame36.label18
+  label .xfbarchartlegend.frame7.frame36.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfbarchartlegend.frame7.frame36.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame36.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge}  -value {ridge}  -variable {xfbarchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame36.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame36.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove}  -value {groove}  -variable {xfbarchartlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame41
+  frame .xfbarchartlegend.frame7.frame41  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame41.label18
+  label .xfbarchartlegend.frame7.frame41.label18  -borderwidth {0}  -pady {0}  -text {Activerelief:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame41.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame41.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised}  -value {raised}  -variable {xfbarchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame41.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame41.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfbarchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame41.radiobutton27
+  radiobutton .xfbarchartlegend.frame7.frame41.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfbarchartlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame2
+  frame .xfbarchartlegend.frame7.frame2  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame2.label18
+  label .xfbarchartlegend.frame7.frame2.label18  -borderwidth {0}  -pady {0}  -text {Anchor:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame2.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame2.radiobutton23  -highlightthickness {0}  -pady {0}  -text {w}  -value {w}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame2.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame2.radiobutton26  -highlightthickness {0}  -pady {0}  -text {center}  -value {center}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame2.radiobutton0
+  radiobutton .xfbarchartlegend.frame7.frame2.radiobutton0  -highlightthickness {0}  -pady {0}  -text {e}  -value {e}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame4
+  frame .xfbarchartlegend.frame7.frame4  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame4.label18
+  label .xfbarchartlegend.frame7.frame4.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfbarchartlegend.frame7.frame4.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame4.radiobutton23  -highlightthickness {0}  -pady {0}  -text {sw}  -value {sw}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame4.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame4.radiobutton26  -highlightthickness {0}  -pady {0}  -text {s}  -value {s}  -variable {xfbarchartlegendOptions(-anchor)} -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame4.radiobutton0
+  radiobutton .xfbarchartlegend.frame7.frame4.radiobutton0  -highlightthickness {0}  -pady {0}  -text {se}  -value {se}  -variable {xfbarchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfbarchartlegend.frame7.frame6
+  frame .xfbarchartlegend.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame6.label18
+  label .xfbarchartlegend.frame7.frame6.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame6.entry19
+  entry .xfbarchartlegend.frame7.frame6.entry19  -textvariable {xfbarchartlegendOptions(-ipadx)}
+  # bindings
+  bind .xfbarchartlegend.frame7.frame6.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartlegend]
+if {$xfbarchartnewval != ""} {set xfbarchartlegendOptions(-ipadx) $xfbarchartnewval}}
+
+  # build widget .xfbarchartlegend.frame7.frame9
+  frame .xfbarchartlegend.frame7.frame9  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame9.label18
+  label .xfbarchartlegend.frame7.frame9.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame9.entry19
+  entry .xfbarchartlegend.frame7.frame9.entry19  -textvariable {xfbarchartlegendOptions(-pady)}
+
+  # build widget .xfbarchartlegend.frame7.frame11
+  frame .xfbarchartlegend.frame7.frame11  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame11.label18
+  label .xfbarchartlegend.frame7.frame11.label18  -borderwidth {0}  -pady {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfbarchartlegend.frame7.frame11.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame11.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised   }  -value {raised}  -variable {xfbarchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfbarchartlegend.frame7.frame11.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame11.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfbarchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfbarchartlegend.frame7.frame11.radiobutton27
+  radiobutton .xfbarchartlegend.frame7.frame11.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfbarchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfbarchartlegend.frame7.frame13
+  frame .xfbarchartlegend.frame7.frame13  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame7.frame13.label18
+  label .xfbarchartlegend.frame7.frame13.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfbarchartlegend.frame7.frame13.radiobutton23
+  radiobutton .xfbarchartlegend.frame7.frame13.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge     }  -value {ridge}  -variable {xfbarchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfbarchartlegend.frame7.frame13.radiobutton26
+  radiobutton .xfbarchartlegend.frame7.frame13.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove }  -value {groove}  -variable {xfbarchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfbarchartlegend.frame8
+  frame .xfbarchartlegend.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame8.button9
+  button .xfbarchartlegend.frame8.button9  -command {xfbarchartcfg_gen $xfbarchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfbarchartlegend.frame8.button10
+  button .xfbarchartlegend.frame8.button10  -command {xfbarchartcfg_axis $xfbarchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfbarchartlegend.frame8.button11
+  button .xfbarchartlegend.frame8.button11  -command {xfbarchartcfg_elem $xfbarchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfbarchartlegend.frame8.button12
+  button .xfbarchartlegend.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfbarchartlegend.frame8.button13
+  button .xfbarchartlegend.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfbarchartlegend.frame15
+  frame .xfbarchartlegend.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartlegend.frame15.button9
+  button .xfbarchartlegend.frame15.button9  -command {set xfnewval "$xfbarchart_path legend configure"
+foreach xfitem [array names xfbarchartlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartlegendOptions($xfitem)]
+      }
+eval $xfnewval
+xfbarchartdestroy.xfbarchartlegend}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartlegend.frame15.button10
+  button .xfbarchartlegend.frame15.button10  -command {set xfnewval "$xfbarchart_path legend configure"
+foreach xfitem [array names xfbarchartlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartlegendOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartlegend.frame15.button12
+  button .xfbarchartlegend.frame15.button12  -command {eval "$xfbarchart_path legend configure $xfbarchartlegendDefaults"
+xfbarchartdestroy.xfbarchartlegend}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartlegend.frame15.checkbutton16
+  checkbutton .xfbarchartlegend.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartlegend.frame22
+  frame .xfbarchartlegend.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartlegend.frame22.label21
+  label .xfbarchartlegend.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfbarchartlegend.frame22.label25
+  label .xfbarchartlegend.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+
+  # pack master .xfbarchartlegend.frame7
+  pack configure .xfbarchartlegend.frame7.frame22  -fill x
+  pack configure .xfbarchartlegend.frame7.frame17  -fill x
+  pack configure .xfbarchartlegend.frame7.frame26  -fill x
+  pack configure .xfbarchartlegend.frame7.frame27  -fill x
+  pack configure .xfbarchartlegend.frame7.frame41  -fill x
+  pack configure .xfbarchartlegend.frame7.frame36  -fill x
+  pack configure .xfbarchartlegend.frame7.frame21  -fill x
+  pack configure .xfbarchartlegend.frame7.frame2  -fill x
+  pack configure .xfbarchartlegend.frame7.frame4  -fill x
+  pack configure .xfbarchartlegend.frame7.frame28  -fill x
+  pack configure .xfbarchartlegend.frame7.frame29  -fill x
+  pack configure .xfbarchartlegend.frame7.frame30  -fill x
+  pack configure .xfbarchartlegend.frame7.frame31  -fill x
+  pack configure .xfbarchartlegend.frame7.frame34  -fill x
+  pack configure .xfbarchartlegend.frame7.frame35  -fill x
+  pack configure .xfbarchartlegend.frame7.frame40  -fill x
+  pack configure .xfbarchartlegend.frame7.frame6  -fill x
+  pack configure .xfbarchartlegend.frame7.frame9  -fill x
+  pack configure .xfbarchartlegend.frame7.frame37  -fill x
+  pack configure .xfbarchartlegend.frame7.frame14  -fill x
+  pack configure .xfbarchartlegend.frame7.frame11  -fill x
+  pack configure .xfbarchartlegend.frame7.frame13  -fill x
+
+  # pack master .xfbarchartlegend.frame7.frame17
+  pack configure .xfbarchartlegend.frame7.frame17.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame22
+  pack configure .xfbarchartlegend.frame7.frame22.label21  -side left
+  pack configure .xfbarchartlegend.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfbarchartlegend.frame7.frame26
+  pack configure .xfbarchartlegend.frame7.frame26.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame27
+  pack configure .xfbarchartlegend.frame7.frame27.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame28
+  pack configure .xfbarchartlegend.frame7.frame28.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame29
+  pack configure .xfbarchartlegend.frame7.frame29.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame30
+  pack configure .xfbarchartlegend.frame7.frame30.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame31
+  pack configure .xfbarchartlegend.frame7.frame31.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame34
+  pack configure .xfbarchartlegend.frame7.frame34.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame35
+  pack configure .xfbarchartlegend.frame7.frame35.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame37
+  pack configure .xfbarchartlegend.frame7.frame37.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame40
+  pack configure .xfbarchartlegend.frame7.frame40.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame40.radiobutton41  -side left
+  pack configure .xfbarchartlegend.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame14
+  pack configure .xfbarchartlegend.frame7.frame14.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame14.radiobutton41  -side left
+  pack configure .xfbarchartlegend.frame7.frame14.radiobutton42  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame21
+  pack configure .xfbarchartlegend.frame7.frame21.label18  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame21.radiobutton23  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame21.radiobutton26  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame21.radiobutton0  -anchor n  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame36
+  pack configure .xfbarchartlegend.frame7.frame36.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame36.radiobutton23  -side left
+  pack configure .xfbarchartlegend.frame7.frame36.radiobutton26  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame41
+  pack configure .xfbarchartlegend.frame7.frame41.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame41.radiobutton23  -anchor s  -side left
+  pack configure .xfbarchartlegend.frame7.frame41.radiobutton26  -anchor s  -side left
+  pack configure .xfbarchartlegend.frame7.frame41.radiobutton27  -anchor s  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame2
+  pack configure .xfbarchartlegend.frame7.frame2.label18  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame2.radiobutton23  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame2.radiobutton26  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame2.radiobutton0  -anchor n  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame4
+  pack configure .xfbarchartlegend.frame7.frame4.label18  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame4.radiobutton23  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame4.radiobutton26  -anchor n  -side left
+  pack configure .xfbarchartlegend.frame7.frame4.radiobutton0  -anchor n  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame6
+  pack configure .xfbarchartlegend.frame7.frame6.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame6.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame9
+  pack configure .xfbarchartlegend.frame7.frame9.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame9.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame11
+  pack configure .xfbarchartlegend.frame7.frame11.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame11.radiobutton23  -anchor s  -side left
+  pack configure .xfbarchartlegend.frame7.frame11.radiobutton26  -anchor s  -side left
+  pack configure .xfbarchartlegend.frame7.frame11.radiobutton27  -anchor s  -side left
+
+  # pack master .xfbarchartlegend.frame7.frame13
+  pack configure .xfbarchartlegend.frame7.frame13.label18  -side left
+  pack configure .xfbarchartlegend.frame7.frame13.radiobutton23  -side left
+  pack configure .xfbarchartlegend.frame7.frame13.radiobutton26  -side left
+
+  # pack master .xfbarchartlegend.frame8
+  pack configure .xfbarchartlegend.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame15
+  pack configure .xfbarchartlegend.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartlegend.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartlegend.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartlegend.frame22
+  pack configure .xfbarchartlegend.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartlegend.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartlegend
+  pack configure .xfbarchartlegend.frame22  -fill x
+  pack configure .xfbarchartlegend.frame7  -expand 1  -fill both
+  pack configure .xfbarchartlegend.frame8  -fill x
+  pack configure .xfbarchartlegend.frame15  -fill x
+}
+
+proc xfbarchartdestroy.xfbarchartlegend {} {
+     catch "destroy .xfbarchartlegend"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartps
+proc xfbarchartshow.xfbarchartps { args} {
+  global xfBind
+
+  # build widget .xfbarchartps
+  catch "destroy .xfbarchartps"
+  toplevel .xfbarchartps   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartps ""
+  wm sizefrom .xfbarchartps ""
+  wm maxsize .xfbarchartps 1152 849
+  wm minsize .xfbarchartps 104 10
+  wm title .xfbarchartps {Barchart Postscript Configuration}
+
+
+  # build widget .xfbarchartps.frame7
+  frame .xfbarchartps.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame17
+  frame .xfbarchartps.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame17.label18
+  label .xfbarchartps.frame7.frame17.label18  -borderwidth {0}  -text {Colormap:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame17.entry19
+  entry .xfbarchartps.frame7.frame17.entry19  -textvariable {xfbarchartpsOptions(-colormap)}
+
+  # build widget .xfbarchartps.frame7.frame22
+  frame .xfbarchartps.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame22.label21
+  label .xfbarchartps.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame22.label25
+  label .xfbarchartps.frame7.frame22.label25  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+
+  # build widget .xfbarchartps.frame7.frame26
+  frame .xfbarchartps.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame26.label18
+  label .xfbarchartps.frame7.frame26.label18  -borderwidth {0}  -text {Colormode:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame26.entry19
+  entry .xfbarchartps.frame7.frame26.entry19  -textvariable {xfbarchartpsOptions(-colormode)}
+
+  # build widget .xfbarchartps.frame7.frame27
+  frame .xfbarchartps.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame27.label18
+  label .xfbarchartps.frame7.frame27.label18  -borderwidth {0}  -text {Fontmap:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame27.entry19
+  entry .xfbarchartps.frame7.frame27.entry19  -textvariable {xfbarchartpsOptions(-fontmap)}
+
+  # build widget .xfbarchartps.frame7.frame28
+  frame .xfbarchartps.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame28.label18
+  label .xfbarchartps.frame7.frame28.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame28.entry19
+  entry .xfbarchartps.frame7.frame28.entry19  -textvariable {xfbarchartpsOptions(-padx)}
+
+  # build widget .xfbarchartps.frame7.frame40
+  frame .xfbarchartps.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame40.label18
+  label .xfbarchartps.frame7.frame40.label18  -borderwidth {0}  -text {Decorations:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame40.radiobutton41
+  radiobutton .xfbarchartps.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartpsOptions(-decorations)}
+
+  # build widget .xfbarchartps.frame7.frame40.radiobutton42
+  radiobutton .xfbarchartps.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartpsOptions(-decorations)}
+
+  # build widget .xfbarchartps.frame7.frame18
+  frame .xfbarchartps.frame7.frame18  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame18.label18
+  label .xfbarchartps.frame7.frame18.label18  -borderwidth {0}  -text {Landscape:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame18.radiobutton41
+  radiobutton .xfbarchartps.frame7.frame18.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartpsOptions(-landscape)}
+
+  # build widget .xfbarchartps.frame7.frame18.radiobutton42
+  radiobutton .xfbarchartps.frame7.frame18.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartpsOptions(-landscape)}
+
+  # build widget .xfbarchartps.frame7.frame20
+  frame .xfbarchartps.frame7.frame20  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame20.label18
+  label .xfbarchartps.frame7.frame20.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame20.entry19
+  entry .xfbarchartps.frame7.frame20.entry19  -textvariable {xfbarchartpsOptions(-pady)}
+
+  # build widget .xfbarchartps.frame7.frame23
+  frame .xfbarchartps.frame7.frame23  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame23.label18
+  label .xfbarchartps.frame7.frame23.label18  -borderwidth {0}  -text {Paperheight:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame23.entry19
+  entry .xfbarchartps.frame7.frame23.entry19  -textvariable {xfbarchartpsOptions(-paperheight)}
+
+  # build widget .xfbarchartps.frame7.frame25
+  frame .xfbarchartps.frame7.frame25  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame25.label18
+  label .xfbarchartps.frame7.frame25.label18  -borderwidth {0}  -text {Paperwidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame25.entry19
+  entry .xfbarchartps.frame7.frame25.entry19  -textvariable {xfbarchartpsOptions(-paperwidth)}
+
+  # build widget .xfbarchartps.frame7.frame30
+  frame .xfbarchartps.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame30.label18
+  label .xfbarchartps.frame7.frame30.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame30.entry19
+  entry .xfbarchartps.frame7.frame30.entry19  -textvariable {xfbarchartpsOptions(-height)}
+
+  # build widget .xfbarchartps.frame7.frame31
+  frame .xfbarchartps.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame7.frame31.label18
+  label .xfbarchartps.frame7.frame31.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfbarchartps.frame7.frame31.entry19
+  entry .xfbarchartps.frame7.frame31.entry19  -textvariable {xfbarchartpsOptions(-width)}
+
+  # build widget .xfbarchartps.frame8
+  frame .xfbarchartps.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame8.button9
+  button .xfbarchartps.frame8.button9  -command {xfbarchartcfg_elem .frame0.xfbarchart0}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfbarchartps.frame8.button10
+  button .xfbarchartps.frame8.button10  -command {xfbarchartcfg_axis .frame0.xfbarchart0}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfbarchartps.frame8.button11
+  button .xfbarchartps.frame8.button11  -command {xfbarchartcfg_legend .frame0.xfbarchart0}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfbarchartps.frame8.button12
+  button .xfbarchartps.frame8.button12  -command {xfbarchartcfg_xhair .frame0.xfbarchart0}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfbarchartps.frame8.button13
+  button .xfbarchartps.frame8.button13  -command {xfbarchartcfg_gen .frame0.xfbarchart0}  -padx {11}  -pady {4}  -text {Paremeters}
+
+  # build widget .xfbarchartps.frame15
+  frame .xfbarchartps.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartps.frame15.button9
+  button .xfbarchartps.frame15.button9  -command {set xfbarchartpsDefaults ""
+foreach xfitem [array names xfbarchartpsOptions] {
+	lappend xfbarchartpsDefaults $xfitem
+	lappend xfbarchartpsDefaults [string trim $xfbarchartpsOptions($xfitem)]
+      }
+eval "$xfbarchart_path postscript configure $xfbarchartpsDefaults"
+xfbarchartdestroy.xfbarchartps}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartps.frame15.button10
+  button .xfbarchartps.frame15.button10  -command {set xfnewval "$xfbarchart_path postscript configure"
+foreach xfitem [array names xfbarchartpsOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartpsOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartps.frame15.button12
+  button .xfbarchartps.frame15.button12  -command {eval "$xfbarchart_path postscript configure $xfbarchartpsDefaults"
+xfbarchartdestroy.xfbarchartps}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartps.frame15.checkbutton16
+  checkbutton .xfbarchartps.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartps.frame22
+  frame .xfbarchartps.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartps.frame22.label21
+  label .xfbarchartps.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfbarchartps.frame22.label25
+  label .xfbarchartps.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+
+  # pack master .xfbarchartps.frame7
+  pack configure .xfbarchartps.frame7.frame22  -fill x
+  pack configure .xfbarchartps.frame7.frame17  -fill x
+  pack configure .xfbarchartps.frame7.frame26  -fill x
+  pack configure .xfbarchartps.frame7.frame40  -fill x
+  pack configure .xfbarchartps.frame7.frame27  -fill x
+  pack configure .xfbarchartps.frame7.frame18  -fill x
+  pack configure .xfbarchartps.frame7.frame28  -fill x
+  pack configure .xfbarchartps.frame7.frame20  -fill x
+  pack configure .xfbarchartps.frame7.frame23  -fill x
+  pack configure .xfbarchartps.frame7.frame25  -fill x
+  pack configure .xfbarchartps.frame7.frame30  -fill x
+  pack configure .xfbarchartps.frame7.frame31  -fill x
+
+  # pack master .xfbarchartps.frame7.frame17
+  pack configure .xfbarchartps.frame7.frame17.label18  -side left
+  pack configure .xfbarchartps.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame22
+  pack configure .xfbarchartps.frame7.frame22.label21  -side left
+  pack configure .xfbarchartps.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfbarchartps.frame7.frame26
+  pack configure .xfbarchartps.frame7.frame26.label18  -side left
+  pack configure .xfbarchartps.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame27
+  pack configure .xfbarchartps.frame7.frame27.label18  -side left
+  pack configure .xfbarchartps.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame28
+  pack configure .xfbarchartps.frame7.frame28.label18  -side left
+  pack configure .xfbarchartps.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame40
+  pack configure .xfbarchartps.frame7.frame40.label18  -side left
+  pack configure .xfbarchartps.frame7.frame40.radiobutton41  -side left
+  pack configure .xfbarchartps.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfbarchartps.frame7.frame18
+  pack configure .xfbarchartps.frame7.frame18.label18  -side left
+  pack configure .xfbarchartps.frame7.frame18.radiobutton41  -side left
+  pack configure .xfbarchartps.frame7.frame18.radiobutton42  -side left
+
+  # pack master .xfbarchartps.frame7.frame20
+  pack configure .xfbarchartps.frame7.frame20.label18  -side left
+  pack configure .xfbarchartps.frame7.frame20.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame23
+  pack configure .xfbarchartps.frame7.frame23.label18  -side left
+  pack configure .xfbarchartps.frame7.frame23.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame25
+  pack configure .xfbarchartps.frame7.frame25.label18  -side left
+  pack configure .xfbarchartps.frame7.frame25.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame30
+  pack configure .xfbarchartps.frame7.frame30.label18  -side left
+  pack configure .xfbarchartps.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame7.frame31
+  pack configure .xfbarchartps.frame7.frame31.label18  -side left
+  pack configure .xfbarchartps.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame8
+  pack configure .xfbarchartps.frame8.button13  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame8.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame15
+  pack configure .xfbarchartps.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartps.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartps.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartps.frame22
+  pack configure .xfbarchartps.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartps.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartps
+  pack configure .xfbarchartps.frame22  -fill x
+  pack configure .xfbarchartps.frame7  -expand 1  -fill both
+  pack configure .xfbarchartps.frame8  -fill x
+  pack configure .xfbarchartps.frame15  -fill x
+}
+
+proc xfbarchartdestroy.xfbarchartps {} {
+     catch "destroy .xfbarchartps"
+}
+
+
+# procedure to show window xfbarchartshow.xfbarchartxhair
+proc xfbarchartshow.xfbarchartxhair { args} {
+  global xfBind
+
+  # build widget .xfbarchartxhair
+  catch "destroy .xfbarchartxhair"
+  toplevel .xfbarchartxhair   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfbarchartxhair ""
+  wm sizefrom .xfbarchartxhair ""
+  wm maxsize .xfbarchartxhair 1152 849
+  wm minsize .xfbarchartxhair 104 10
+  wm title .xfbarchartxhair {Barchart Crosshairs Configuration}
+
+  # build widget .xfbarchartxhair.frame7
+  frame .xfbarchartxhair.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame17
+  frame .xfbarchartxhair.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame17.label18
+  label .xfbarchartxhair.frame7.frame17.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfbarchartxhair.frame7.frame17.entry19
+  entry .xfbarchartxhair.frame7.frame17.entry19  -textvariable {xfbarchartxhairOptions(-color)}
+  # bindings
+  bind .xfbarchartxhair.frame7.frame17.entry19 $xfBind(configure) {set xfbarchartnewval [tk_chooseColor -parent .xfbarchartxhair]
+if {$xfbarchartnewval != ""} {set xfbarchartxhairOptions(-color) $xfbarchartnewval}}
+
+  # build widget .xfbarchartxhair.frame7.frame22
+  frame .xfbarchartxhair.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame22.label21
+  label .xfbarchartxhair.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfbarchartxhair.frame7.frame22.label25
+  label .xfbarchartxhair.frame7.frame22.label25  -borderwidth {0}  -text {barchart0}  -textvariable {xfbarchart_name}
+
+  # build widget .xfbarchartxhair.frame7.frame26
+  frame .xfbarchartxhair.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame26.label18
+  label .xfbarchartxhair.frame7.frame26.label18  -borderwidth {0}  -text {Dashes:}  -width {16} -anchor e
+
+  # build widget .xfbarchartxhair.frame7.frame26.entry19
+  entry .xfbarchartxhair.frame7.frame26.entry19  -textvariable {xfbarchartxhairOptions(-dashes)}
+
+  # build widget .xfbarchartxhair.frame7.frame27
+  frame .xfbarchartxhair.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame27.label18
+  label .xfbarchartxhair.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfbarchartxhair.frame7.frame27.entry19
+  entry .xfbarchartxhair.frame7.frame27.entry19  -textvariable {xfbarchartxhairOptions(-linewidth)}
+
+  # build widget .xfbarchartxhair.frame7.frame28
+  frame .xfbarchartxhair.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame28.label18
+  label .xfbarchartxhair.frame7.frame28.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfbarchartxhair.frame7.frame28.entry19
+  entry .xfbarchartxhair.frame7.frame28.entry19  -textvariable {xfbarchartxhairOptions(-position)}
+
+  # build widget .xfbarchartxhair.frame7.frame40
+  frame .xfbarchartxhair.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame7.frame40.label18
+  label .xfbarchartxhair.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16}
+
+  # build widget .xfbarchartxhair.frame7.frame40.radiobutton41
+  radiobutton .xfbarchartxhair.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfbarchartxhairOptions(-hide)}
+
+  # build widget .xfbarchartxhair.frame7.frame40.radiobutton42
+  radiobutton .xfbarchartxhair.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfbarchartxhairOptions(-hide)}
+
+  # build widget .xfbarchartxhair.frame8
+  frame .xfbarchartxhair.frame8  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame8.button9
+  button .xfbarchartxhair.frame8.button9  -command {xfbarchartcfg_elem $xfbarchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfbarchartxhair.frame8.button10
+  button .xfbarchartxhair.frame8.button10  -command {xfbarchartcfg_axis $xfbarchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfbarchartxhair.frame8.button11
+  button .xfbarchartxhair.frame8.button11  -command {xfbarchartcfg_legend $xfbarchart_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfbarchartxhair.frame8.button12
+  button .xfbarchartxhair.frame8.button12  -command {xfbarchartcfg_gen $xfbarchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfbarchartxhair.frame8.button13
+  button .xfbarchartxhair.frame8.button13  -command {xfbarchartcfg_ps $xfbarchart_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfbarchartxhair.frame15
+  frame .xfbarchartxhair.frame15  -height {30}  -width {30}
+
+  # build widget .xfbarchartxhair.frame15.button9
+  button .xfbarchartxhair.frame15.button9  -command {set xfbarchartDefaults ""
+foreach xfitem [array names xfbarchartxhairOptions] {
+	lappend xfbarchartxhairDefaults $xfitem
+	lappend xfbarchartxhairDefaults [string trim $xfbarchartxhairOptions($xfitem)]
+      }
+eval "$xfbarchart_path crosshairs configure $xfbarchartxhairDefaults"
+xfbarchartdestroy.xfbarchartxhair}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfbarchartxhair.frame15.button10
+  button .xfbarchartxhair.frame15.button10  -command {set xfnewval "$xfbarchart_path crosshairs configure"
+foreach xfitem [array names xfbarchartxhairOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfbarchartxhairOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfbarchartxhair.frame15.button12
+  button .xfbarchartxhair.frame15.button12  -command {eval "$xfbarchart_path crosshairs configure $xfbarchartxhairDefaults"
+xfbarchartdestroy.xfbarchartxhair}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfbarchartxhair.frame15.checkbutton16
+  checkbutton .xfbarchartxhair.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfbarchartxhair.frame22
+  frame .xfbarchartxhair.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfbarchartxhair.frame22.label21
+  label .xfbarchartxhair.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfbarchartxhair.frame22.label25
+  label .xfbarchartxhair.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfbarchart_parent}
+
+  # pack master .xfbarchartxhair.frame7
+  pack configure .xfbarchartxhair.frame7.frame22  -fill x
+  pack configure .xfbarchartxhair.frame7.frame17  -fill x
+  pack configure .xfbarchartxhair.frame7.frame26  -fill x
+  pack configure .xfbarchartxhair.frame7.frame27  -fill x
+  pack configure .xfbarchartxhair.frame7.frame40  -fill x
+  pack configure .xfbarchartxhair.frame7.frame28  -fill x
+
+  # pack master .xfbarchartxhair.frame7.frame17
+  pack configure .xfbarchartxhair.frame7.frame17.label18  -side left
+  pack configure .xfbarchartxhair.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame7.frame22
+  pack configure .xfbarchartxhair.frame7.frame22.label21  -side left
+  pack configure .xfbarchartxhair.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfbarchartxhair.frame7.frame26
+  pack configure .xfbarchartxhair.frame7.frame26.label18  -side left
+  pack configure .xfbarchartxhair.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame7.frame27
+  pack configure .xfbarchartxhair.frame7.frame27.label18  -side left
+  pack configure .xfbarchartxhair.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame7.frame28
+  pack configure .xfbarchartxhair.frame7.frame28.label18  -side left
+  pack configure .xfbarchartxhair.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame7.frame40
+  pack configure .xfbarchartxhair.frame7.frame40.label18  -side left
+  pack configure .xfbarchartxhair.frame7.frame40.radiobutton41  -side left
+  pack configure .xfbarchartxhair.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfbarchartxhair.frame8
+  pack configure .xfbarchartxhair.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame15
+  pack configure .xfbarchartxhair.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfbarchartxhair.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfbarchartxhair.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfbarchartxhair.frame22
+  pack configure .xfbarchartxhair.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfbarchartxhair.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfbarchartxhair
+  pack configure .xfbarchartxhair.frame22  -fill x
+  pack configure .xfbarchartxhair.frame7  -expand 1  -fill both
+  pack configure .xfbarchartxhair.frame8  -fill x
+  pack configure .xfbarchartxhair.frame15  -fill x
+}
+
+proc xfbarchartdestroy.xfbarchartxhair {} {
+     catch "destroy .xfbarchartxhair"
+}
+
+# Procedure: xfbarchart_getaxisopt
+proc xfbarchart_getaxisopt { barchart_path axis} {
+    global xfbarchartaxisOptions xfbarchartaxisDefaults
+
+    foreach item [$barchart_path $axis configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchartaxisOptions($name) $value
+    }
+    set names [lsort [array names xfbarchartaxisOptions]]
+    set xfbarchartaxisDefaults {}
+    foreach i $names {
+	lappend xfbarchartaxisDefaults $i $xfbarchartaxisOptions($i)
+    }
+}
+
+
+# Procedure: xfbarchart_getelemopt
+proc xfbarchart_getelemopt { barchart_path element} {
+    global xfbarchartelemOptions xfbarchartelemDefaults xfbarchartcurelem
+
+    set xfbarchartcurelem $element
+    foreach item [$barchart_path element configure $element] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchartelemOptions($name) $value
+    }
+    set names [lsort [array names xfbarchartelemOptions]]
+    set xfbarchartelemDefaults {}
+    foreach i $names {
+	lappend xfbarchartelemDefaults $i $xfbarchartelemOptions($i)
+    }
+}
+
+
+# Procedure: xfbarchart_getlegendopt
+proc xfbarchart_getlegendopt { barchart_path} {
+    global xfbarchartlegendOptions xfbarchartlegendDefaults
+
+    foreach item [$barchart_path legend configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchartlegendOptions($name) $value
+    }
+    set names [lsort [array names xfbarchartlegendOptions]]
+    set xfbarchartlegendDefaults {}
+    foreach i $names {
+	lappend xfbarchartlegendDefaults $i $xfbarchartlegendOptions($i)
+    }
+}
+
+
+# Procedure: xfbarchart_getopt
+proc xfbarchart_getopt { barchart_path} {
+    global xfbarchart xfbarchartDefaults
+
+    foreach item [$barchart_path configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchart($name) $value
+    }
+    set names [lsort [array names xfbarchart]]
+    set xfbarchartDefaults {}
+    foreach i $names {
+	lappend xfbarchartDefaults $i $xfbarchart($i)
+    }
+}
+
+
+# Procedure: xfbarchart_getpsopt
+proc xfbarchart_getpsopt { barchart_path} {
+    global xfbarchartpsOptions xfbarchartpsDefaults
+
+    foreach item [$barchart_path postscript configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchartpsOptions($name) $value
+    }
+    set names [lsort [array names xfbarchartpsOptions]]
+    set xfbarchartpsDefaults {}
+    foreach i $names {
+	lappend xfbarchartpsDefaults $i $xfbarchartpsOptions($i)
+    }
+}
+
+
+# Procedure: xfbarchart_getxhairopt
+proc xfbarchart_getxhairopt { barchart_path} {
+    global xfbarchartxhairOptions xfbarchartxhairDefaults
+
+    foreach item [$barchart_path crosshairs configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfbarchartxhairOptions($name) $value
+    }
+    set names [lsort [array names xfbarchartxhairOptions]]
+    set xfbarchartxhairDefaults {}
+    foreach i $names {
+	lappend xfbarchartxhairDefaults $i $xfbarchartxhairOptions($i)
+    }
+}
+
+
+# Procedure: xfbarchartcfg_axis
+proc xfbarchartcfg_axis { barchart_path} {
+    global xfbarchartaxisOptions xfbarchartaxisDefaults 
+    global xfbarchart_parent xfbarchart_name xfbarchartcuraxis xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    xfbarchart_getaxisopt $barchart_path xaxis
+    xfbarchartshow.xfbarchartaxis
+    set xfbarchartcuraxis xaxis
+}
+
+
+# Procedure: xfbarchartcfg_elem
+proc xfbarchartcfg_elem { barchart_path} {
+    global xfbarchartelemOptions xfbarchartelemDefaults
+    global xfbarchart_parent xfbarchart_name xfbarchartcurelem xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    set elements [lsort [$barchart_path element names]]
+    if	{ [llength $elements] > 0 } {
+	  set element [lindex $elements 0]
+	  xfbarchart_getelemopt $barchart_path $element
+	} {
+	  set xfbarchartcurelem ""
+	}
+
+    xfbarchartshow.xfbarchartelem
+    update
+
+    set count 0
+    if {[winfo exists .xfbarchartelem.frame7.elemnames.frame]} {destroy .xfbarchartelem.frame7.elemnames.frame}
+    frame .xfbarchartelem.frame7.elemnames.frame
+    pack .xfbarchartelem.frame7.elemnames.frame
+    foreach i $elements {
+	radiobutton .xfbarchartelem.frame7.elemnames.frame.rbutton_$i -variable xfbarchartcurelem -value $i -text $i  -command "xfbarchart_getelemopt $barchart_path $i"
+	pack .xfbarchartelem.frame7.elemnames.frame.rbutton_$i -side left
+	incr count
+    }
+}
+
+
+# Procedure: xfbarchartcfg_gen
+proc xfbarchartcfg_gen { barchart_path} {
+    global xfbarchart xfbarchartDefaults
+    global xfbarchart_parent xfbarchart_name xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    xfbarchart_getopt $barchart_path
+    xfbarchartshow.xfbarchartgen
+}
+
+
+# Procedure: xfbarchartcfg_legend
+proc xfbarchartcfg_legend { barchart_path} {
+    global xfbarchartlegendOptions xfbarchartlegendDefaults
+    global xfbarchart_parent xfbarchart_name xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    xfbarchart_getlegendopt $barchart_path
+    xfbarchartshow.xfbarchartlegend
+}
+
+
+# Procedure: xfbarchartcfg_ps
+proc xfbarchartcfg_ps { barchart_path} {
+    global xfbarchartpsOptions xfbarchartpsDefaults
+    global xfbarchart_parent xfbarchart_name xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    xfbarchart_getpsopt $barchart_path
+    xfbarchartshow.xfbarchartps
+}
+
+
+# Procedure: xfbarchartcfg_xhair
+proc xfbarchartcfg_xhair { barchart_path} {
+    global xfbarchartxhairOptions xfbarchartxhairDefaults
+    global xfbarchart_parent xfbarchart_name xfbarchart_path
+
+    set xfbarchart_parent [winfo parent $barchart_path]
+    set xfbarchart_name [winfo name $barchart_path]
+    set xfbarchart_path $barchart_path
+
+    xfbarchart_getxhairopt $barchart_path
+    xfbarchartshow.xfbarchartxhair
+}
+
+# eof
+

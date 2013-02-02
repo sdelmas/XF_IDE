@@ -1,0 +1,2783 @@
+# Program: xf
+# Description: handle BLT 2.4 stripchart widgets
+#
+# Created by Dennis LaBelle
+#
+set default [pwd]
+set blt_version 2.4
+catch {load blt24}
+catch {namespace import blt::*} result
+
+global xfDefaultConf
+set xfDefaultConf(stripchart) 4
+
+##########
+# Procedure: XFAdd.Stripchart
+# Description: add a Stripchart
+# Arguments: xfW - the widget
+#            xfName - a optional name
+#            xfType - add or config
+# Returns: none
+# Sideeffects: none
+##########
+proc XFAdd.Stripchart {xfW xfName xfType} {
+  global xfStatus
+
+  XFEditSetStatus "Inserting Stripchart..."
+  set xfName [XFMiscGetUniqueName $xfName stripchart]
+  if {"$xfStatus(path)" == "."} {
+    if {"$xfType" == "add"} {
+      if {[catch "stripchart .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Stripchart...aborted"
+        return
+      }
+    } {
+      if {[catch "Stripchart .$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Stripchart...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget .$xfName
+    XFMiscBindWidgetTree .$xfName
+  } {
+    if {"$xfType" == "add"} {
+      if {[catch "stripchart $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Stripchart...aborted"
+        return
+      }
+    } {
+      if {[catch "stripchart $xfStatus(path).$xfName" xfResult]} {
+        XFProcError "$xfResult"
+        XFEditSetStatus "Inserting Stripchart...aborted"
+        return
+      }
+    }
+
+    XFMiscPositionWidget $xfStatus(path).$xfName
+    XFMiscBindWidgetTree $xfStatus(path).$xfName
+  }
+
+  incr xfStatus(elementCounter)
+  XFEditSetPath $xfStatus(path)
+  XFEditSetStatus "Inserting Stripchart...done"
+}
+
+##########
+# Procedure: XFConfig.Stripchart4
+# Description: configure a Stripchart
+# Arguments: xfW - the widget
+#            xfType - config type (add or config)
+#            xfClass - the class we configure
+#            xfLeader - the leading window
+# Returns: none
+# Sideeffects: none
+##########
+proc XFConfig.Stripchart4 {xfW xfType xfClass {xfLeader ""}} {
+  global xfStatus
+
+  if {"$xfType" == "add"} {
+    set xfName stripchart$xfStatus(elementCounter)
+  } {
+    set xfName [XFMiscPathName $xfW]
+  }
+  XFEditSetStatus "Calling parameter setting for Stripchart..."
+
+  xfstripchartcfg_gen $xfW
+  if {[winfo exists .xfstripchartelem]} {xfstripchartcfg_elem $xfW}
+
+  XFEditSetStatus "Calling parameter setting for Stripchart...done"
+}
+
+##########
+# Procedure: XFStripchartSetStripchart4
+# Description: set stripchart parameters
+# Arguments: xfW - the widget
+#            xfType - the type of setting (1 = set always, 0 = set
+#                     only if permanent apply is on)
+#            xfClass - the class we configure
+#            xfParam1 - ignored parameter
+# Returns: none
+# Sideeffects: none
+##########
+proc XFStripchartSetStripchart4 {xfW xfType xfClass {xfParam1 ""}} {
+  global xfConf
+  global xfMisc
+
+  if {$xfType == 0 && !$xfConf(applyParameters)} {
+    return
+  }
+  if {"[info commands $xfW]" == ""} {
+    return
+  }
+  XFMiscSetSymbolicName $xfW \
+    [.xf${xfClass}Config4.params1.params2.symname.symname get]
+
+  XFMiscSetResource $xfW background \
+    [.xf${xfClass}Config4.params1.params2.bg.bg get]
+}
+
+##########
+# Procedure: XFSaveSpecial.Stripchart
+# Description: save barstripchart
+# Arguments: xfW - the widget
+# Returns: none
+# Sideeffects: none
+##########
+proc XFSaveSpecial.Stripchart {xfW} {
+global xfstripchartDefaults
+global xfstripchartcurelem
+global xfstripchartelemDefaults
+global xfstripchartaxisDefaults
+global xfstripchartlegendDefaults
+global xfstripchartxhairDefaults
+global xfstripchartpsDefaults
+global xfstripchartelemOptions
+
+  xfstripchart_getopt $xfW
+  set rtnval "\n  $xfW configure $xfstripchartDefaults"
+  set vnamelist [vector names]
+  set elements [lsort [$xfW element names]]
+  foreach element $elements {
+	    if {$element != ""} {
+			xfstripchart_getelemopt $xfW $element
+			set vname $xfstripchartelemOptions(-xdata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n  $vname set {$vecname(:)}"
+			   }
+			set vname $xfstripchartelemOptions(-ydata)
+			if {[lsearch $vnamelist $vname] != -1} {
+				# Output code to support vector
+				upvar #0 $vname vecname
+				set rtnval "$rtnval\nglobal $vname"
+				set rtnval "$rtnval\nif {\[info exists $vname\]} {unset $vname}"
+				set rtnval "$rtnval\nvector create $vname"
+				set rtnval "$rtnval\n  $vname set {$vecname(:)}"
+			   }
+			set rtnval "$rtnval\n  $xfW element create $element $xfstripchartelemDefaults"
+		 }
+	  }
+  xfstripchart_getaxisopt $xfW xaxis
+  set rtnval "$rtnval\n  $xfW xaxis configure $xfstripchartaxisDefaults"
+  xfstripchart_getaxisopt $xfW yaxis
+  set rtnval "$rtnval\n  $xfW yaxis configure $xfstripchartaxisDefaults"
+  xfstripchart_getaxisopt $xfW x2axis
+  set rtnval "$rtnval\n  $xfW x2axis configure $xfstripchartaxisDefaults"
+  xfstripchart_getaxisopt $xfW y2axis
+  set rtnval "$rtnval\n  $xfW y2axis configure $xfstripchartaxisDefaults"
+  xfstripchart_getlegendopt $xfW
+  set rtnval "$rtnval\n  $xfW legend configure $xfstripchartlegendDefaults"
+  xfstripchart_getxhairopt $xfW
+  set rtnval "$rtnval\n  $xfW crosshairs configure $xfstripchartxhairDefaults"
+  xfstripchart_getpsopt $xfW
+  set rtnval "$rtnval\n  $xfW postscript configure $xfstripchartpsDefaults\n"
+  return $rtnval
+}
+# procedure to show window xfstripchartshow.xfstripchartaxis
+proc xfstripchartshow.xfstripchartaxis { args} {
+  global xfBind
+
+  # build widget .xfstripchartaxis
+  catch "destroy .xfstripchartaxis"
+  toplevel .xfstripchartaxis   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartaxis ""
+  wm sizefrom .xfstripchartaxis ""
+  wm maxsize .xfstripchartaxis 1152 849
+  wm minsize .xfstripchartaxis 104 1
+  wm title .xfstripchartaxis {Stripchart Axis Configuration Options}
+
+
+  # build widget .xfstripchartaxis.frame7
+  frame .xfstripchartaxis.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame22
+  frame .xfstripchartaxis.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame22.label21
+  label .xfstripchartaxis.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame22.label25
+  label .xfstripchartaxis.frame7.frame22.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  frame .xfstripchartaxis.frame7.frame200  -height {30}  -width {30}
+  label .xfstripchartaxis.frame7.frame200.label  -borderwidth {0}  -text {Autorange:} -width {16} -anchor e
+  entry .xfstripchartaxis.frame7.frame200.entry  -textvariable {xfstripchartaxisOptions(-autorange)}
+
+  # build widget .xfstripchartaxis.frame7.frame26
+  frame .xfstripchartaxis.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame26.label18
+  label .xfstripchartaxis.frame7.frame26.label18  -borderwidth {0}  -text {Titlefont:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame26.entry19
+  entry .xfstripchartaxis.frame7.frame26.entry19  -textvariable {xfstripchartaxisOptions(-titlefont)}
+
+  # bindings
+  bind .xfstripchartaxis.frame7.frame26.entry19 $xfBind(configure) {set xfstripchartnewval [XFFontBox $xfFile(fonts)]
+if {$xfstripchartnewval != ""} {set xfstripchartaxisOptions(-titlefont) $xfstripchartnewval}}
+
+  # build widget .xfstripchartaxis.frame7.frame27
+  frame .xfstripchartaxis.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame27.label18
+  label .xfstripchartaxis.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame27.entry19
+  entry .xfstripchartaxis.frame7.frame27.entry19  -textvariable {xfstripchartaxisOptions(-linewidth)}
+
+  # build widget .xfstripchartaxis.frame7.frame28
+  frame .xfstripchartaxis.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame28.label18
+  label .xfstripchartaxis.frame7.frame28.label18  -borderwidth {0}  -text {Max:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame28.entry19
+  entry .xfstripchartaxis.frame7.frame28.entry19  -textvariable {xfstripchartaxisOptions(-max)}
+
+  # build widget .xfstripchartaxis.frame7.frame29
+  frame .xfstripchartaxis.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame29.label18
+  label .xfstripchartaxis.frame7.frame29.label18  -borderwidth {0}  -text {Min:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame29.entry19
+  entry .xfstripchartaxis.frame7.frame29.entry19  -textvariable {xfstripchartaxisOptions(-min)}
+
+  # build widget .xfstripchartaxis.frame7.frame30
+  frame .xfstripchartaxis.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame30.label18
+  label .xfstripchartaxis.frame7.frame30.label18  -borderwidth {0}  -text {Rotate:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame30.entry19
+  entry .xfstripchartaxis.frame7.frame30.entry19  -textvariable {xfstripchartaxisOptions(-rotate)}
+
+  frame .xfstripchartaxis.frame7.frame201  -height {30}  -width {30}
+  label .xfstripchartaxis.frame7.frame201.label  -borderwidth {0}  -text {Shiftby:} -width {16} -anchor e
+  entry .xfstripchartaxis.frame7.frame201.entry  -textvariable {xfstripchartaxisOptions(-shiftby)}
+
+  # build widget .xfstripchartaxis.frame7.frame31
+  frame .xfstripchartaxis.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame31.label18
+  label .xfstripchartaxis.frame7.frame31.label18  -borderwidth {0}  -text {Stepsize:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame31.entry19
+  entry .xfstripchartaxis.frame7.frame31.entry19  -textvariable {xfstripchartaxisOptions(-stepsize)}
+
+  # build widget .xfstripchartaxis.frame7.frame32
+  frame .xfstripchartaxis.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame32.label18
+  label .xfstripchartaxis.frame7.frame32.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame32.entry19
+  entry .xfstripchartaxis.frame7.frame32.entry19  -textvariable {xfstripchartaxisOptions(-color)}
+  # bindings
+  bind .xfstripchartaxis.frame7.frame32.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartaxis]
+if {$xfstripchartnewval != ""} {set xfstripchartaxisOptions(-color) $xfstripchartnewval}}
+
+  # build widget .xfstripchartaxis.frame7.frame33
+  frame .xfstripchartaxis.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame33.label18
+  label .xfstripchartaxis.frame7.frame33.label18  -borderwidth {0}  -text {Subdivisions:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame33.entry19
+  entry .xfstripchartaxis.frame7.frame33.entry19  -textvariable {xfstripchartaxisOptions(-subdivisions)}
+
+  # build widget .xfstripchartaxis.frame7.frame34
+  frame .xfstripchartaxis.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame34.label18
+  label .xfstripchartaxis.frame7.frame34.label18  -borderwidth {0}  -text {Ticklength:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame34.entry19
+  entry .xfstripchartaxis.frame7.frame34.entry19  -textvariable {xfstripchartaxisOptions(-ticklength)}
+
+  # build widget .xfstripchartaxis.frame7.frame35
+  frame .xfstripchartaxis.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame35.label18
+  label .xfstripchartaxis.frame7.frame35.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame35.entry19
+  entry .xfstripchartaxis.frame7.frame35.entry19  -textvariable {xfstripchartaxisOptions(-title)}
+
+  # build widget .xfstripchartaxis.frame7.frame40
+  frame .xfstripchartaxis.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame40.label18
+  label .xfstripchartaxis.frame7.frame40.label18  -borderwidth {0}  -text {Descending:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartaxisOptions(-descending)}
+
+  # build widget .xfstripchartaxis.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartaxisOptions(-descending)}
+
+  # build widget .xfstripchartaxis.frame7.elemnames
+  frame .xfstripchartaxis.frame7.elemnames
+
+  # build widget .xfstripchartaxis.frame7.elemnames.label6
+  label .xfstripchartaxis.frame7.elemnames.label6  -borderwidth {0}  -text {Axis:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.elemnames.xaxis
+  radiobutton .xfstripchartaxis.frame7.elemnames.xaxis  -command {xfstripchart_getaxisopt $xfstripchart_path xaxis}  -text {xaxis}  -value {xaxis}  -variable {xfstripchartcuraxis}
+
+  # build widget .xfstripchartaxis.frame7.elemnames.xaxis3
+  radiobutton .xfstripchartaxis.frame7.elemnames.xaxis3  -command {xfstripchart_getaxisopt $xfstripchart_path yaxis}  -text {yaxis}  -value {yaxis}  -variable {xfstripchartcuraxis}
+
+  # build widget .xfstripchartaxis.frame7.elemnames.xaxis4
+  radiobutton .xfstripchartaxis.frame7.elemnames.xaxis4  -command {xfstripchart_getaxisopt $xfstripchart_path x2axis}  -text {x2axis}  -value {x2axis}  -variable {xfstripchartcuraxis}
+
+  # build widget .xfstripchartaxis.frame7.elemnames.xaxis5
+  radiobutton .xfstripchartaxis.frame7.elemnames.xaxis5  -command {xfstripchart_getaxisopt $xfstripchart_path y2axis}  -text {y2axis}  -value {y2axis}  -variable {xfstripchartcuraxis}
+
+  # build widget .xfstripchartaxis.frame7.frame6
+  frame .xfstripchartaxis.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame6.label18
+  label .xfstripchartaxis.frame7.frame6.label18  -borderwidth {0}  -text {Logscale:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame6.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame6.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartaxisOptions(-logscale)}
+
+  # build widget .xfstripchartaxis.frame7.frame6.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame6.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartaxisOptions(-logscale)}
+
+  # build widget .xfstripchartaxis.frame7.frame8
+  frame .xfstripchartaxis.frame7.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame8.label18
+  label .xfstripchartaxis.frame7.frame8.label18  -borderwidth {0}  -text {Loose:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame8.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame8.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartaxisOptions(-loose)}
+
+  # build widget .xfstripchartaxis.frame7.frame8.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame8.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartaxisOptions(-loose)}
+
+  # build widget .xfstripchartaxis.frame7.frame10
+  frame .xfstripchartaxis.frame7.frame10  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame10.label18
+  label .xfstripchartaxis.frame7.frame10.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame10.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame10.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartaxisOptions(-hide)}
+
+  # build widget .xfstripchartaxis.frame7.frame10.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame10.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartaxisOptions(-hide)}
+
+  # build widget .xfstripchartaxis.frame7.frame12
+  frame .xfstripchartaxis.frame7.frame12  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame12.label18
+  label .xfstripchartaxis.frame7.frame12.label18  -borderwidth {0}  -text {Showticks:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame12.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame12.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartaxisOptions(-showticks)}
+
+  # build widget .xfstripchartaxis.frame7.frame12.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame12.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartaxisOptions(-showticks)}
+
+  # build widget .xfstripchartaxis.frame7.frame15
+  frame .xfstripchartaxis.frame7.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame7.frame15.label18
+  label .xfstripchartaxis.frame7.frame15.label18  -borderwidth {0}  -text {Justify:}  -width {16} -anchor e
+
+  # build widget .xfstripchartaxis.frame7.frame15.radiobutton41
+  radiobutton .xfstripchartaxis.frame7.frame15.radiobutton41  -text {left}  -value {left}  -variable {xfstripchartaxisOptions(-justify)}
+
+  # build widget .xfstripchartaxis.frame7.frame15.radiobutton42
+  radiobutton .xfstripchartaxis.frame7.frame15.radiobutton42  -text {right}  -value {right}  -variable {xfstripchartaxisOptions(-justify)}
+
+  # build widget .xfstripchartaxis.frame7.frame15.radiobutton17
+  radiobutton .xfstripchartaxis.frame7.frame15.radiobutton17  -text {center}  -value {center}  -variable {xfstripchartaxisOptions(-justify)}
+
+  # build widget .xfstripchartaxis.frame8
+  frame .xfstripchartaxis.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame8.button9
+  button .xfstripchartaxis.frame8.button9  -command {xfstripchartcfg_gen $xfstripchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfstripchartaxis.frame8.button10
+  button .xfstripchartaxis.frame8.button10  -command {xfstripchartcfg_elem $xfstripchart_path}  -padx {11}  -pady {4}  -text {Elements}
+
+  # build widget .xfstripchartaxis.frame8.button11
+  button .xfstripchartaxis.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfstripchartaxis.frame8.button12
+  button .xfstripchartaxis.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfstripchartaxis.frame8.button13
+  button .xfstripchartaxis.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfstripchartaxis.frame15
+  frame .xfstripchartaxis.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartaxis.frame15.button9
+  button .xfstripchartaxis.frame15.button9  -command {set xfnewval "$xfstripchart_path $xfstripchartcuraxis configure"
+foreach xfitem [array names xfstripchartaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartaxisOptions($xfitem)]
+      }
+eval $xfnewval
+xfstripchartdestroy.xfstripchartaxis}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartaxis.frame15.button10
+  button .xfstripchartaxis.frame15.button10  -command {set xfnewval "$xfstripchart_path $xfstripchartcuraxis configure"
+foreach xfitem [array names xfstripchartaxisOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartaxisOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartaxis.frame15.button12
+  button .xfstripchartaxis.frame15.button12  -command {eval "$xfstripchart_path $xfstripchartcuraxis configure $xfstripchartaxisDefaults"
+xfstripchartdestroy.xfstripchartaxis}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartaxis.frame15.checkbutton16
+  checkbutton .xfstripchartaxis.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartaxis.frame22
+  frame .xfstripchartaxis.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartaxis.frame22.label21
+  label .xfstripchartaxis.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartaxis.frame22.label25
+  label .xfstripchartaxis.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # pack master .xfstripchartaxis.frame7
+  pack configure .xfstripchartaxis.frame7.frame22  -fill x
+  pack configure .xfstripchartaxis.frame7.elemnames  -fill x
+
+  pack  .xfstripchartaxis.frame7.frame200 -fill x
+  pack  .xfstripchartaxis.frame7.frame200.label -side left
+  pack  .xfstripchartaxis.frame7.frame200.entry -expand 1 -fill x -side left
+
+  pack configure .xfstripchartaxis.frame7.frame32  -fill x
+  pack configure .xfstripchartaxis.frame7.frame40  -fill x
+  pack configure .xfstripchartaxis.frame7.frame15  -fill x
+  pack configure .xfstripchartaxis.frame7.frame27  -fill x
+  pack configure .xfstripchartaxis.frame7.frame6  -fill x
+  pack configure .xfstripchartaxis.frame7.frame8  -fill x
+  pack configure .xfstripchartaxis.frame7.frame10  -fill x
+  pack configure .xfstripchartaxis.frame7.frame28  -fill x
+  pack configure .xfstripchartaxis.frame7.frame29  -fill x
+  pack configure .xfstripchartaxis.frame7.frame30  -fill x
+
+  pack  .xfstripchartaxis.frame7.frame201 -fill x
+  pack  .xfstripchartaxis.frame7.frame201.label -side left
+  pack  .xfstripchartaxis.frame7.frame201.entry -expand 1 -fill x -side left
+
+  pack configure .xfstripchartaxis.frame7.frame12  -fill x
+  pack configure .xfstripchartaxis.frame7.frame31  -fill x
+  pack configure .xfstripchartaxis.frame7.frame33  -fill x
+  pack configure .xfstripchartaxis.frame7.frame34  -fill x
+  pack configure .xfstripchartaxis.frame7.frame35  -fill x
+  pack configure .xfstripchartaxis.frame7.frame26  -fill x
+
+  # pack master .xfstripchartaxis.frame7.frame22
+  pack configure .xfstripchartaxis.frame7.frame22.label21  -side left
+  pack configure .xfstripchartaxis.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartaxis.frame7.frame26
+  pack configure .xfstripchartaxis.frame7.frame26.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame27
+  pack configure .xfstripchartaxis.frame7.frame27.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame28
+  pack configure .xfstripchartaxis.frame7.frame28.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame29
+  pack configure .xfstripchartaxis.frame7.frame29.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame30
+  pack configure .xfstripchartaxis.frame7.frame30.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame31
+  pack configure .xfstripchartaxis.frame7.frame31.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame32
+  pack configure .xfstripchartaxis.frame7.frame32.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame33
+  pack configure .xfstripchartaxis.frame7.frame33.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame34
+  pack configure .xfstripchartaxis.frame7.frame34.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame35
+  pack configure .xfstripchartaxis.frame7.frame35.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame40
+  pack configure .xfstripchartaxis.frame7.frame40.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfstripchartaxis.frame7.elemnames
+  pack configure .xfstripchartaxis.frame7.elemnames.label6  -side left
+  pack configure .xfstripchartaxis.frame7.elemnames.xaxis  -side left
+  pack configure .xfstripchartaxis.frame7.elemnames.xaxis3  -side left
+  pack configure .xfstripchartaxis.frame7.elemnames.xaxis4  -side left
+  pack configure .xfstripchartaxis.frame7.elemnames.xaxis5  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame6
+  pack configure .xfstripchartaxis.frame7.frame6.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame6.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame6.radiobutton42  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame8
+  pack configure .xfstripchartaxis.frame7.frame8.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame8.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame8.radiobutton42  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame10
+  pack configure .xfstripchartaxis.frame7.frame10.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame10.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame10.radiobutton42  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame12
+  pack configure .xfstripchartaxis.frame7.frame12.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame12.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame12.radiobutton42  -side left
+
+  # pack master .xfstripchartaxis.frame7.frame15
+  pack configure .xfstripchartaxis.frame7.frame15.label18  -side left
+  pack configure .xfstripchartaxis.frame7.frame15.radiobutton41  -side left
+  pack configure .xfstripchartaxis.frame7.frame15.radiobutton42  -side left
+  pack configure .xfstripchartaxis.frame7.frame15.radiobutton17  -side left
+
+  # pack master .xfstripchartaxis.frame8
+  pack configure .xfstripchartaxis.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame15
+  pack configure .xfstripchartaxis.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartaxis.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartaxis.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartaxis.frame22
+  pack configure .xfstripchartaxis.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartaxis.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartaxis
+  pack configure .xfstripchartaxis.frame22  -fill x
+  pack configure .xfstripchartaxis.frame7  -expand 1  -fill both
+  pack configure .xfstripchartaxis.frame8  -fill x
+  pack configure .xfstripchartaxis.frame15  -fill x
+
+}
+
+proc xfstripchartdestroy.xfstripchartaxis {} {# xf ignore me 7
+    catch "destroy .xfstripchartaxis"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartconf
+proc xfstripchartshow.xfstripchartconf { args} {
+  global xfBind
+
+  # build widget .xfstripchartconf
+  catch "destroy .xfstripchartconf"
+  toplevel .xfstripchartconf 
+
+  # Window manager configurations
+
+  wm positionfrom .xfstripchartconf ""
+  wm sizefrom .xfstripchartconf ""
+  wm maxsize .xfstripchartconf 1156 849
+  wm minsize .xfstripchartconf 104 1
+  wm title .xfstripchartconf {Stripchart Configure Tool}
+
+  # build widget .xfstripchartconf.cbutton_General
+  checkbutton .xfstripchartconf.cbutton_General  -command {ConfigureGeneral}  -text {General}  -variable {varGeneral}
+
+  # build widget .xfstripchartconf.cbutton_Element
+  checkbutton .xfstripchartconf.cbutton_Element  -command {ConfigureElement}  -text {Element}  -variable {varElement}
+
+  # build widget .xfstripchartconf.cbutton_Axis
+  checkbutton .xfstripchartconf.cbutton_Axis  -command {ConfigureAxis}  -text {Axis}  -variable {varAxis}
+
+  # build widget .xfstripchartconf.cbutton_Legend
+  checkbutton .xfstripchartconf.cbutton_Legend  -command {ConfigureLegend}  -text {Legend}  -variable {varLegend}
+
+  # build widget .xfstripchartconf.cbutton_Crosshairs
+  checkbutton .xfstripchartconf.cbutton_Crosshairs  -command {ConfigureCrosshairs}  -text {Crosshairs}  -variable {varCrosshairs}
+
+  # build widget .xfstripchartconf.cbutton_PostScript
+  checkbutton .xfstripchartconf.cbutton_PostScript  -command {ConfigurePostScript}  -text {PostScript}  -variable {varPostScript}
+
+  # build widget .xfstripchartconf.quit
+  button .xfstripchartconf.quit  -command {xfstripchartdestroy.xfstripchartconf}  -padx {11}  -pady {4}  -text {quit}
+
+  # build widget .xfstripchartconf.frame0
+  frame .xfstripchartconf.frame0  -borderwidth {2}  -height {30}  -relief {ridge}  -width {30}
+
+  # build widget .xfstripchartconf.frame0.label1
+  label .xfstripchartconf.frame0.label1  -background {steelblue}  -font {helvetica 12 bold}  -foreground {white}  -relief {groove}  -text {Path:}
+
+  # build widget .xfstripchartconf.frame0.entry2
+  entry .xfstripchartconf.frame0.entry2  -background {lightblue}  -font {helvetica 12 bold}
+
+  # pack master .xfstripchartconf.frame0
+  pack configure .xfstripchartconf.frame0.label1  -fill y  -side left
+  pack configure .xfstripchartconf.frame0.entry2  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartconf
+  pack configure .xfstripchartconf.frame0  -fill x
+  pack configure .xfstripchartconf.cbutton_General  -anchor w
+  pack configure .xfstripchartconf.cbutton_Element  -anchor w
+  pack configure .xfstripchartconf.cbutton_Axis  -anchor w
+  pack configure .xfstripchartconf.cbutton_Legend  -anchor w
+  pack configure .xfstripchartconf.cbutton_Crosshairs  -anchor w
+  pack configure .xfstripchartconf.cbutton_PostScript  -anchor w
+  pack configure .xfstripchartconf.quit
+
+  .xfstripchartconf.frame0.entry2 insert end {.frame0.xfstripchart0}
+}
+
+proc xfstripchartdestroy.xfstripchartconf {} {# xf ignore me 7
+    catch "destroy .xfstripchartconf"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartelem
+proc xfstripchartshow.xfstripchartelem { args} {
+  global xfBind
+
+  # build widget .xfstripchartelem
+  catch "destroy .xfstripchartelem"
+  toplevel .xfstripchartelem   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartelem ""
+  wm sizefrom .xfstripchartelem ""
+  wm maxsize .xfstripchartelem 1152 849
+  wm minsize .xfstripchartelem 104 1
+  wm title .xfstripchartelem {Stripchart Element Configuration Options}
+
+
+  # build widget .xfstripchartelem.frame7
+  frame .xfstripchartelem.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame17
+  frame .xfstripchartelem.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame17.label18
+  label .xfstripchartelem.frame7.frame17.label18  -borderwidth {0}  -text {Fill:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame17.entry19
+  entry .xfstripchartelem.frame7.frame17.entry19  -textvariable {xfstripchartelemOptions(-fill)}
+  # bindings
+  bind .xfstripchartelem.frame7.frame17.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartelem]
+if {$xfstripchartnewval != ""} {set xfstripchartelemOptions(-fill) $xfstripchartnewval}}
+
+  # build widget .xfstripchartelem.frame7.frame22
+  frame .xfstripchartelem.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame22.label21
+  label .xfstripchartelem.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame22.label25
+  label .xfstripchartelem.frame7.frame22.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  # build widget .xfstripchartelem.frame7.frame26
+  frame .xfstripchartelem.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame26.label18
+  label .xfstripchartelem.frame7.frame26.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame26.entry19
+  entry .xfstripchartelem.frame7.frame26.entry19  -textvariable {xfstripchartelemOptions(-color)}
+  # bindings
+  bind .xfstripchartelem.frame7.frame26.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartelem]
+if {$xfstripchartnewval != ""} {set xfstripchartelemOptions(-color) $xfstripchartnewval}}
+
+  # build widget .xfstripchartelem.frame7.frame29
+  frame .xfstripchartelem.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame29.label18
+  label .xfstripchartelem.frame7.frame29.label18  -borderwidth {0}  -text {Outlinewidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame29.entry19
+  entry .xfstripchartelem.frame7.frame29.entry19  -textvariable {xfstripchartelemOptions(-outlinewidth)}
+  # bindings
+  bind .xfstripchartelem.frame7.frame29.entry19 $xfBind(configure) {set xfstripchart(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfstripchartelem.frame7.frame30
+  frame .xfstripchartelem.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame30.label18
+  label .xfstripchartelem.frame7.frame30.label18  -borderwidth {0}  -text {Dashes:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame30.entry19
+  entry .xfstripchartelem.frame7.frame30.entry19  -textvariable {xfstripchartelemOptions(-dashes)}
+
+  # build widget .xfstripchartelem.frame7.frame31
+  frame .xfstripchartelem.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame31.label18
+  label .xfstripchartelem.frame7.frame31.label18  -borderwidth {0}  -text {Data:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame31.entry19
+  entry .xfstripchartelem.frame7.frame31.entry19  -textvariable {xfstripchartelemOptions(-data)}
+
+  # build widget .xfstripchartelem.frame7.frame32
+  frame .xfstripchartelem.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame33
+  frame .xfstripchartelem.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame33.label18
+  label .xfstripchartelem.frame7.frame33.label18  -borderwidth {0}  -text {Label:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame33.entry19
+  entry .xfstripchartelem.frame7.frame33.entry19  -textvariable {xfstripchartelemOptions(-label)}
+
+  # build widget .xfstripchartelem.frame7.frame34
+  frame .xfstripchartelem.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame34.label18
+  label .xfstripchartelem.frame7.frame34.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame34.entry19
+  entry .xfstripchartelem.frame7.frame34.entry19  -textvariable {xfstripchartelemOptions(-linewidth)}
+
+  # build widget .xfstripchartelem.frame7.frame52
+  frame .xfstripchartelem.frame7.frame52  -height {30}  -width {30}
+  label .xfstripchartelem.frame7.frame52.label18  -borderwidth {0}  -text {SymbolSize:}  -width {16} -anchor e
+  entry .xfstripchartelem.frame7.frame52.entry19  -textvariable {xfstripchartelemOptions(-pixels)}
+
+  # build widget .xfstripchartelem.frame7.frame37
+  frame .xfstripchartelem.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame37.label18
+  label .xfstripchartelem.frame7.frame37.label18  -borderwidth {0}  -text {Scalesymbols:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame37.entry19
+  entry .xfstripchartelem.frame7.frame37.entry19  -textvariable {xfstripchartelemOptions(-scalesymbols)}
+
+  # build widget .xfstripchartelem.frame7.frame38
+  frame .xfstripchartelem.frame7.frame38  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame38.label18
+  label .xfstripchartelem.frame7.frame38.label18  -borderwidth {0}  -text {Ydata:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame38.entry19
+  entry .xfstripchartelem.frame7.frame38.entry19  -textvariable {xfstripchartelemOptions(-ydata)}
+
+  # build widget .xfstripchartelem.frame7.frame39
+  frame .xfstripchartelem.frame7.frame39  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame39.label18
+  label .xfstripchartelem.frame7.frame39.label18  -borderwidth {0}  -text {Xdata:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame39.entry19
+  entry .xfstripchartelem.frame7.frame39.entry19  -textvariable {xfstripchartelemOptions(-xdata)}
+
+  # build widget .xfstripchartelem.frame7.frame40
+  frame .xfstripchartelem.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame40.label18
+  label .xfstripchartelem.frame7.frame40.label18  -borderwidth {0}  -text {Mapx:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartelem.frame7.frame40.radiobutton41  -text {x}  -value {x}  -variable {xfstripchartelemOptions(-mapx)}
+
+  # build widget .xfstripchartelem.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartelem.frame7.frame40.radiobutton42  -text {x2}  -value {x2}  -variable {xfstripchartelemOptions(-mapx)}
+
+  # build widget .xfstripchartelem.frame7.frame40.radiobutton12
+  radiobutton .xfstripchartelem.frame7.frame40.radiobutton12  -text {both}  -value {both}  -variable {xfstripchartelemOptions(-mapx)}
+
+  # build widget .xfstripchartelem.frame7.frame43
+  frame .xfstripchartelem.frame7.frame43  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame43.label18
+  label .xfstripchartelem.frame7.frame43.label18  -borderwidth {0}  -text {Invertxy:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame43.radiobutton41
+  radiobutton .xfstripchartelem.frame7.frame43.radiobutton41  -text {true}  -value {1}  -variable {xfstripchart(-invertxy)}
+
+  # build widget .xfstripchartelem.frame7.frame43.radiobutton42
+  radiobutton .xfstripchartelem.frame7.frame43.radiobutton42  -text {false}  -value {0}  -variable {xfstripchart(-invertxy)}
+
+  # build widget .xfstripchartelem.frame7.elemnames
+  frame .xfstripchartelem.frame7.elemnames
+
+  # build widget .xfstripchartelem.frame7.elemnames.label6
+  label .xfstripchartelem.frame7.elemnames.label6  -borderwidth {0}  -text {Elements:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.elemnames.frame
+  frame .xfstripchartelem.frame7.elemnames.frame
+
+  # build widget .xfstripchartelem.frame7.elemnames.frame.rbutton_2
+  radiobutton .xfstripchartelem.frame7.elemnames.frame.rbutton_2  -command {xfstripchart_getelemopt .frame0.xfstripchart0 2}  -text {2}  -value {2}  -variable {xfstripchartcurelem}
+
+  # build widget .xfstripchartelem.frame7.elemnames.frame.rbutton_6
+  radiobutton .xfstripchartelem.frame7.elemnames.frame.rbutton_6  -command {xfstripchart_getelemopt .frame0.xfstripchart0 6}  -text {6}  -value {6}  -variable {xfstripchartcurelem}
+
+  # build widget .xfstripchartelem.frame7.frame14
+  frame .xfstripchartelem.frame7.frame14  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame14.label18
+  label .xfstripchartelem.frame7.frame14.label18  -borderwidth {0}  -text {Mapy:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame14.radiobutton41
+  radiobutton .xfstripchartelem.frame7.frame14.radiobutton41  -text {y}  -value {y}  -variable {xfstripchartelemOptions(-mapy)}
+
+  # build widget .xfstripchartelem.frame7.frame14.radiobutton42
+  radiobutton .xfstripchartelem.frame7.frame14.radiobutton42  -text {y2}  -value {y2}  -variable {xfstripchartelemOptions(-mapy)}
+
+  # build widget .xfstripchartelem.frame7.frame14.radiobutton12
+  radiobutton .xfstripchartelem.frame7.frame14.radiobutton12  -text {both}  -value {both}  -variable {xfstripchartelemOptions(-mapy)}
+
+  # build widget .xfstripchartelem.frame7.frame21
+  frame .xfstripchartelem.frame7.frame21  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame21.label18
+  label .xfstripchartelem.frame7.frame21.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartelem.frame7.frame21.radiobutton23
+  radiobutton .xfstripchartelem.frame7.frame21.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Line}  -value {none}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame21.radiobutton26
+  radiobutton .xfstripchartelem.frame7.frame21.radiobutton26  -highlightthickness {0}  -pady {0}  -text {Circle}  -value {circle}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame36
+  frame .xfstripchartelem.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame36.label18
+  label .xfstripchartelem.frame7.frame36.label18  -borderwidth {0}  -pady {0}  -text {Symbol:}  -width {16} -anchor e
+
+  # build widget .xfstripchartelem.frame7.frame36.radiobutton23
+  radiobutton .xfstripchartelem.frame7.frame36.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Diamond}  -value {diamond}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame36.radiobutton26
+  radiobutton .xfstripchartelem.frame7.frame36.radiobutton26  -highlightthickness {0}  -pady {0}  -text {Plus}  -value {plus}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame36.radiobutton27
+  radiobutton .xfstripchartelem.frame7.frame36.radiobutton27  -highlightthickness {0}  -pady {0}  -text {Square}  -value {square}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame41
+  frame .xfstripchartelem.frame7.frame41  -height {30} -width {30}
+
+  # build widget .xfstripchartelem.frame7.frame41.label18
+  label .xfstripchartelem.frame7.frame41.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartelem.frame7.frame41.radiobutton23
+  radiobutton .xfstripchartelem.frame7.frame41.radiobutton23  -highlightthickness {0}  -pady {0}  -text {Scross}  -value {scross}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame41.radiobutton26
+  radiobutton .xfstripchartelem.frame7.frame41.radiobutton26  -highlightthickness {0}  -text {Splus}  -value {splus}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame7.frame41.radiobutton27
+  radiobutton .xfstripchartelem.frame7.frame41.radiobutton27  -highlightthickness {0}  -pady {0}  -text {Cross}  -value {cross}  -variable {xfstripchartelemOptions(-symbol)}  -width {7} -anchor w
+
+  # build widget .xfstripchartelem.frame8
+  frame .xfstripchartelem.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame8.button9
+  button .xfstripchartelem.frame8.button9  -command {xfstripchartcfg_gen $xfstripchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfstripchartelem.frame8.button10
+  button .xfstripchartelem.frame8.button10  -command {xfstripchartcfg_axis $xfstripchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfstripchartelem.frame8.button11
+  button .xfstripchartelem.frame8.button11  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfstripchartelem.frame8.button12
+  button .xfstripchartelem.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfstripchartelem.frame8.button13
+  button .xfstripchartelem.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfstripchartelem.frame15
+  frame .xfstripchartelem.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame15.button9
+  button .xfstripchartelem.frame15.button9  -command {set xfnewval "$xfstripchart_path element configure $xfstripchartcurelem"
+foreach xfitem [lsort [array names xfstripchartelemOptions]] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartelemOptions($xfitem)]
+      }
+eval $xfnewval
+xfstripchartdestroy.xfstripchartelem}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartelem.frame15.button10
+  button .xfstripchartelem.frame15.button10  -command {if {$xfstripchartcurelem != ""} {
+	set xfnewval "$xfstripchart_path element configure $xfstripchartcurelem"
+	foreach xfitem [lsort [array names xfstripchartelemOptions]] {
+		lappend xfnewval $xfitem
+		lappend xfnewval [string trim $xfstripchartelemOptions($xfitem)]
+	      }
+	eval $xfnewval
+   }}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartelem.frame15.button12
+  button .xfstripchartelem.frame15.button12  -command {if {$xfstripchartcurelem != ""} {
+	eval "$xfstripchart_path element configure $xfstripchartcurelem $xfstripchartelemDefaults"
+   }
+xfstripchartdestroy.xfstripchartelem}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartelem.frame15.checkbutton16
+  checkbutton .xfstripchartelem.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartelem.frame22
+  frame .xfstripchartelem.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartelem.frame22.label21
+  label .xfstripchartelem.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartelem.frame22.label25
+  label .xfstripchartelem.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # build widget .xfstripchartelem.frame0
+  frame .xfstripchartelem.frame0  -height {30}  -width {30}
+
+  # build widget .xfstripchartelem.frame0.button3
+  button .xfstripchartelem.frame0.button3  -command {set elemlist [$xfstripchart_path element names]
+set ctr [llength $elemlist]
+incr ctr
+while {[lsearch $elemlist $ctr] != -1} {
+	incr ctr
+      }
+$xfstripchart_path element create $ctr
+xfstripchartcfg_elem $xfstripchart_path}  -padx {11}  -pady {4}  -text {Add Element}
+
+  # build widget .xfstripchartelem.frame0.button2
+  button .xfstripchartelem.frame0.button2  -command {if {$xfstripchartcurelem != ""} {
+    $xfstripchart_path element delete $xfstripchartcurelem
+    xfstripchartcfg_elem $xfstripchart_path
+   }}  -padx {11}  -pady {4}  -text {Delete Element}
+
+  # pack master .xfstripchartelem.frame7
+  pack configure .xfstripchartelem.frame7.frame22  -fill x
+  pack configure .xfstripchartelem.frame7.elemnames  -fill x
+  pack configure .xfstripchartelem.frame7.frame17  -fill x
+  pack configure .xfstripchartelem.frame7.frame26  -fill x
+  pack configure .xfstripchartelem.frame7.frame29  -fill x
+  pack configure .xfstripchartelem.frame7.frame30  -fill x
+  pack configure .xfstripchartelem.frame7.frame31  -fill x
+  pack configure .xfstripchartelem.frame7.frame43  -fill x
+  pack configure .xfstripchartelem.frame7.frame33  -fill x
+  pack configure .xfstripchartelem.frame7.frame34  -fill x
+  pack configure .xfstripchartelem.frame7.frame40  -fill x
+  pack configure .xfstripchartelem.frame7.frame14  -fill x
+  pack configure .xfstripchartelem.frame7.frame41  -fill x
+  pack configure .xfstripchartelem.frame7.frame36  -fill x
+  pack configure .xfstripchartelem.frame7.frame21  -fill x
+  pack configure .xfstripchartelem.frame7.frame52  -fill x
+  pack configure .xfstripchartelem.frame7.frame37  -fill x
+  pack configure .xfstripchartelem.frame7.frame39  -fill x
+  pack configure .xfstripchartelem.frame7.frame38  -fill x
+
+  # pack master .xfstripchartelem.frame7.frame17
+  pack configure .xfstripchartelem.frame7.frame17.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame22
+  pack configure .xfstripchartelem.frame7.frame22.label21  -side left
+  pack configure .xfstripchartelem.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartelem.frame7.frame26
+  pack configure .xfstripchartelem.frame7.frame26.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame29
+  pack configure .xfstripchartelem.frame7.frame29.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame30
+  pack configure .xfstripchartelem.frame7.frame30.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame31
+  pack configure .xfstripchartelem.frame7.frame31.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame33
+  pack configure .xfstripchartelem.frame7.frame33.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame34
+  pack configure .xfstripchartelem.frame7.frame34.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame52
+  pack configure .xfstripchartelem.frame7.frame52.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame52.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame37
+  pack configure .xfstripchartelem.frame7.frame37.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame38
+  pack configure .xfstripchartelem.frame7.frame38.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame38.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame39
+  pack configure .xfstripchartelem.frame7.frame39.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame39.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame7.frame40
+  pack configure .xfstripchartelem.frame7.frame40.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartelem.frame7.frame40.radiobutton42  -side left
+  pack configure .xfstripchartelem.frame7.frame40.radiobutton12  -side left
+
+  # pack master .xfstripchartelem.frame7.frame43
+  pack configure .xfstripchartelem.frame7.frame43.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame43.radiobutton41  -side left
+  pack configure .xfstripchartelem.frame7.frame43.radiobutton42  -side left
+
+  # pack master .xfstripchartelem.frame7.elemnames
+  pack configure .xfstripchartelem.frame7.elemnames.label6  -side left
+  pack configure .xfstripchartelem.frame7.elemnames.frame
+
+  # pack master .xfstripchartelem.frame7.elemnames.frame
+  pack configure .xfstripchartelem.frame7.elemnames.frame.rbutton_2  -side left
+  pack configure .xfstripchartelem.frame7.elemnames.frame.rbutton_6  -side left
+
+  # pack master .xfstripchartelem.frame7.frame14
+  pack configure .xfstripchartelem.frame7.frame14.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame14.radiobutton41  -side left
+  pack configure .xfstripchartelem.frame7.frame14.radiobutton42  -side left
+  pack configure .xfstripchartelem.frame7.frame14.radiobutton12  -side left
+
+  # pack master .xfstripchartelem.frame7.frame21
+  pack configure .xfstripchartelem.frame7.frame21.label18  -anchor n  -side left
+  pack configure .xfstripchartelem.frame7.frame21.radiobutton23  -anchor n  -side left
+  pack configure .xfstripchartelem.frame7.frame21.radiobutton26  -anchor n  -side left
+
+  # pack master .xfstripchartelem.frame7.frame36
+  pack configure .xfstripchartelem.frame7.frame36.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame36.radiobutton23  -side left
+  pack configure .xfstripchartelem.frame7.frame36.radiobutton26  -side left
+  pack configure .xfstripchartelem.frame7.frame36.radiobutton27  -side left
+
+  # pack master .xfstripchartelem.frame7.frame41
+  pack configure .xfstripchartelem.frame7.frame41.label18  -side left
+  pack configure .xfstripchartelem.frame7.frame41.radiobutton23  -anchor s  -side left
+  pack configure .xfstripchartelem.frame7.frame41.radiobutton26  -anchor s  -side left
+  pack configure .xfstripchartelem.frame7.frame41.radiobutton27  -anchor s  -side left
+
+  # pack master .xfstripchartelem.frame8
+  pack configure .xfstripchartelem.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame15
+  pack configure .xfstripchartelem.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartelem.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem.frame22
+  pack configure .xfstripchartelem.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartelem.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartelem.frame0
+  pack configure .xfstripchartelem.frame0.button3  -expand 1  -fill x  -side left
+  pack configure .xfstripchartelem.frame0.button2  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartelem
+  pack configure .xfstripchartelem.frame22  -fill x
+  pack configure .xfstripchartelem.frame7  -expand 1  -fill both
+  pack configure .xfstripchartelem.frame8  -fill x
+  pack configure .xfstripchartelem.frame0  -fill x
+  pack configure .xfstripchartelem.frame15  -fill x
+}
+
+proc xfstripchartdestroy.xfstripchartelem {} {
+     catch "destroy .xfstripchartelem"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartgen
+proc xfstripchartshow.xfstripchartgen { args} {
+  global xfBind
+
+  # build widget .xfstripchartgen
+  catch "destroy .xfstripchartgen"
+  toplevel .xfstripchartgen   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartgen ""
+  wm sizefrom .xfstripchartgen ""
+  wm maxsize .xfstripchartgen 1152 849
+  wm minsize .xfstripchartgen 104 10
+  wm title .xfstripchartgen {Stripchart Parameters}
+
+
+  # build widget .xfstripchartgen.frame7
+  frame .xfstripchartgen.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame17
+  frame .xfstripchartgen.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame17.label18
+  label .xfstripchartgen.frame7.frame17.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame17.entry19
+  entry .xfstripchartgen.frame7.frame17.entry19  -textvariable {xfstripchart(-background)}
+  # bindings
+  bind .xfstripchartgen.frame7.frame17.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartgen]
+if {$xfstripchartnewval != ""} {set xfstripchart(-background) $xfstripchartnewval}}
+
+  # build widget .xfstripchartgen.frame7.frame26
+  frame .xfstripchartgen.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame26.label18
+  label .xfstripchartgen.frame7.frame26.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame26.entry19
+  entry .xfstripchartgen.frame7.frame26.entry19  -textvariable {xfstripchart(-borderwidth)}
+
+  # build widget .xfstripchartgen.frame7.frame27
+  frame .xfstripchartgen.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame27.label18
+  label .xfstripchartgen.frame7.frame27.label18  -borderwidth {0}  -text {Bottommargin:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame27.entry19
+  entry .xfstripchartgen.frame7.frame27.entry19  -textvariable {xfstripchart(-bottommargin)}
+
+  # build widget .xfstripchartgen.frame7.frame28
+  frame .xfstripchartgen.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame28.label18
+  label .xfstripchartgen.frame7.frame28.label18  -borderwidth {0}  -text {Cursor:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame28.entry19
+  entry .xfstripchartgen.frame7.frame28.entry19  -textvariable {xfstripchart(-cursor)}
+  # bindings
+  bind .xfstripchartgen.frame7.frame28.entry19 $xfBind(configure) {set xfnewval [CursorBox $xfFile(cursors)]
+if {$xfnewval != ""} {set xfstripchart(-cursor) $xfnewval}}
+
+  # build widget .xfstripchartgen.frame7.frame29
+  frame .xfstripchartgen.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame29.label18
+  label .xfstripchartgen.frame7.frame29.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame29.entry19
+  entry .xfstripchartgen.frame7.frame29.entry19  -textvariable {xfstripchart(-font)}
+  # bindings
+  bind .xfstripchartgen.frame7.frame29.entry19 $xfBind(configure) {set xfstripchart(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfstripchartgen.frame7.frame30
+  frame .xfstripchartgen.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame30.label18
+  label .xfstripchartgen.frame7.frame30.label18  -borderwidth {0}  -text {Foreground:} -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame30.entry19
+  entry .xfstripchartgen.frame7.frame30.entry19  -textvariable {xfstripchart(-foreground)}
+  # bindings
+  bind .xfstripchartgen.frame7.frame30.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartgen]
+if {$xfstripchartnewval != ""} {set xfstripchart(-foreground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartgen.frame7.frame31
+  frame .xfstripchartgen.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame31.label18
+  label .xfstripchartgen.frame7.frame31.label18  -borderwidth {0}  -text {Halo:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame31.entry19
+  entry .xfstripchartgen.frame7.frame31.entry19  -textvariable {xfstripchart(-halo)}
+
+  # build widget .xfstripchartgen.frame7.frame32
+  frame .xfstripchartgen.frame7.frame32  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame32.label18
+  label .xfstripchartgen.frame7.frame32.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame32.entry19
+  entry .xfstripchartgen.frame7.frame32.entry19  -textvariable {xfstripchart(-height)}
+
+  # build widget .xfstripchartgen.frame7.frame33
+  frame .xfstripchartgen.frame7.frame33  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame33.label18
+  label .xfstripchartgen.frame7.frame33.label18  -borderwidth {0}  -text {Leftmargin:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame33.entry19
+  entry .xfstripchartgen.frame7.frame33.entry19  -textvariable {xfstripchart(-leftmargin)}
+
+  # build widget .xfstripchartgen.frame7.frame34
+  frame .xfstripchartgen.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame34.label18
+  label .xfstripchartgen.frame7.frame34.label18  -borderwidth {0}  -text {Plotbackground:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame34.entry19
+  entry .xfstripchartgen.frame7.frame34.entry19  -textvariable {xfstripchart(-plotbackground)}
+  # bindings
+  bind .xfstripchartgen.frame7.frame34.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartgen]
+if {$xfstripchartnewval != ""} {set xfstripchart(-plotbackground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartgen.frame7.frame35
+  frame .xfstripchartgen.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame35.label18
+  label .xfstripchartgen.frame7.frame35.label18  -borderwidth {0}  -text {Plotborderwidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame35.entry19
+  entry .xfstripchartgen.frame7.frame35.entry19  -textvariable {xfstripchart(-plotborderwidth)}
+
+  # build widget .xfstripchartgen.frame7.frame36
+  frame .xfstripchartgen.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame36.label18
+  label .xfstripchartgen.frame7.frame36.label18  -borderwidth {0}  -text {Rightmargin:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame36.entry19
+  entry .xfstripchartgen.frame7.frame36.entry19  -textvariable {xfstripchart(-rightmargin)}
+
+  # build widget .xfstripchartgen.frame7.frame37
+  frame .xfstripchartgen.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame37.label18
+  label .xfstripchartgen.frame7.frame37.label18  -borderwidth {0}  -text {Title:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame37.entry19
+  entry .xfstripchartgen.frame7.frame37.entry19  -textvariable {xfstripchart(-title)}
+
+  # build widget .xfstripchartgen.frame7.frame38
+  frame .xfstripchartgen.frame7.frame38  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame38.label18
+  label .xfstripchartgen.frame7.frame38.label18  -borderwidth {0}  -text {Topmargin:}  -width {16}  -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame38.entry19
+  entry .xfstripchartgen.frame7.frame38.entry19  -textvariable {xfstripchart(-topmargin)}
+
+  # build widget .xfstripchartgen.frame7.frame39
+  frame .xfstripchartgen.frame7.frame39  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame39.label18
+  label .xfstripchartgen.frame7.frame39.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame39.entry19
+  entry .xfstripchartgen.frame7.frame39.entry19  -textvariable {xfstripchart(-width)}
+
+  # build widget .xfstripchartgen.frame7.frame40
+  frame .xfstripchartgen.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame40.label18
+  label .xfstripchartgen.frame7.frame40.label18  -borderwidth {0}  -text {Bufferlelements:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartgen.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfstripchart(-bufferelements)}
+
+  # build widget .xfstripchartgen.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartgen.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfstripchart(-bufferelements)}
+
+  # build widget .xfstripchartgen.frame7.frame43
+  frame .xfstripchartgen.frame7.frame43  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame43.label18
+  label .xfstripchartgen.frame7.frame43.label18  -borderwidth {0}  -text {Invertxy:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame43.radiobutton41
+  radiobutton .xfstripchartgen.frame7.frame43.radiobutton41  -text {true}  -value {1}  -variable {xfstripchart(-invertxy)}
+
+  # build widget .xfstripchartgen.frame7.frame43.radiobutton42
+  radiobutton .xfstripchartgen.frame7.frame43.radiobutton42  -text {false}  -value {0}  -variable {xfstripchart(-invertxy)}
+
+  # build widget .xfstripchartgen.frame7.frame44
+  frame .xfstripchartgen.frame7.frame44  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame44.label18
+  label .xfstripchartgen.frame7.frame44.label18  -borderwidth {0}  -text {Plotrelief:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame44.radiobutton41
+  radiobutton .xfstripchartgen.frame7.frame44.radiobutton41  -text {raised}  -value {raised}  -variable {xfstripchart(-plotrelief)}
+
+  # build widget .xfstripchartgen.frame7.frame44.radiobutton42
+  radiobutton .xfstripchartgen.frame7.frame44.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfstripchart(-plotrelief)}
+
+  # build widget .xfstripchartgen.frame7.frame44.radiobutton45
+  radiobutton .xfstripchartgen.frame7.frame44.radiobutton45  -text {flat}  -value {flat}  -variable {xfstripchart(-plotrelief)}
+
+  # build widget .xfstripchartgen.frame7.frame44.radiobutton46
+  radiobutton .xfstripchartgen.frame7.frame44.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfstripchart(-plotrelief)}
+
+  # build widget .xfstripchartgen.frame7.frame44.radiobutton47
+  radiobutton .xfstripchartgen.frame7.frame44.radiobutton47  -text {groove}  -value {groove}  -variable {xfstripchart(-plotrelief)}
+
+  # build widget .xfstripchartgen.frame7.frame48
+  frame .xfstripchartgen.frame7.frame48  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame48.label18
+  label .xfstripchartgen.frame7.frame48.label18  -borderwidth {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame48.radiobutton41
+  radiobutton .xfstripchartgen.frame7.frame48.radiobutton41  -text {raised}  -value {raised}  -variable {xfstripchart(-relief)}
+
+  # build widget .xfstripchartgen.frame7.frame48.radiobutton42
+  radiobutton .xfstripchartgen.frame7.frame48.radiobutton42  -text {sunken}  -value {sunken}  -variable {xfstripchart(-relief)}
+
+  # build widget .xfstripchartgen.frame7.frame48.radiobutton45
+  radiobutton .xfstripchartgen.frame7.frame48.radiobutton45  -text {flat}  -value {flat}  -variable {xfstripchart(-relief)}
+
+  # build widget .xfstripchartgen.frame7.frame48.radiobutton46
+  radiobutton .xfstripchartgen.frame7.frame48.radiobutton46  -text {ridge}  -value {ridge}  -variable {xfstripchart(-relief)}
+
+  # build widget .xfstripchartgen.frame7.frame48.radiobutton47
+  radiobutton .xfstripchartgen.frame7.frame48.radiobutton47  -text {groove}  -value {groove}  -variable {xfstripchart(-relief)}
+
+  # build widget .xfstripchartgen.frame7.frame1
+  frame .xfstripchartgen.frame7.frame1  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame7.frame1.label21
+  label .xfstripchartgen.frame7.frame1.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartgen.frame7.frame1.label25
+  label .xfstripchartgen.frame7.frame1.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  # build widget .xfstripchartgen.frame8
+  frame .xfstripchartgen.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame8.button9
+  button .xfstripchartgen.frame8.button9  -command {xfstripchartcfg_elem $xfstripchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfstripchartgen.frame8.button10
+  button .xfstripchartgen.frame8.button10  -command {xfstripchartcfg_axis $xfstripchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfstripchartgen.frame8.button11
+  button .xfstripchartgen.frame8.button11  -command {xfstripchartcfg_legend $xfstripchart_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfstripchartgen.frame8.button12
+  button .xfstripchartgen.frame8.button12  -command {xfstripchartcfg_xhair $xfstripchart_path}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfstripchartgen.frame8.button13
+  button .xfstripchartgen.frame8.button13  -command {xfstripchartcfg_ps $xfstripchart_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfstripchartgen.frame14
+  frame .xfstripchartgen.frame14  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame14.button9
+  button .xfstripchartgen.frame14.button9  -padx {11}  -pady {4}  -text {Special}
+
+  # build widget .xfstripchartgen.frame14.button10
+  button .xfstripchartgen.frame14.button10  -command {XFProcConfParametersGeneral $xfstripchart_path}  -padx {11}  -pady {4}  -text {General}
+
+  # build widget .xfstripchartgen.frame14.button11
+  button .xfstripchartgen.frame14.button11  -command {XFProcConfGeometryDefault $xfstripchart_parent}  -padx {11}  -pady {4}  -text {Geometry}
+
+  # build widget .xfstripchartgen.frame14.button12
+  button .xfstripchartgen.frame14.button12  -command {XFProcConfBinding $xfstripchart_path}  -padx {11}  -pady {4}  -text {Binding}
+
+  # build widget .xfstripchartgen.frame15
+  frame .xfstripchartgen.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartgen.frame15.button9
+  button .xfstripchartgen.frame15.button9  -command {set xfstripchartDefaults ""
+foreach xfitem [array names xfstripchart] {
+	lappend xfstripchartDefaults $xfitem
+	lappend xfstripchartDefaults [string trim $xfstripchart($xfitem)]
+      }
+eval "$xfstripchart_path configure $xfstripchartDefaults"
+xfstripchartdestroy.xfstripchartgen}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartgen.frame15.button10
+  button .xfstripchartgen.frame15.button10  -command {set xfnewval "$xfstripchart_path configure"
+foreach xfitem [array names xfstripchart] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchart($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartgen.frame15.button12
+  button .xfstripchartgen.frame15.button12  -command {eval "$xfstripchart_path configure $xfstripchartDefaults"
+xfstripchartdestroy.xfstripchartgen}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartgen.frame15.checkbutton16
+  checkbutton .xfstripchartgen.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartgen.frame22
+  frame .xfstripchartgen.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartgen.frame22.label21
+  label .xfstripchartgen.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartgen.frame22.label25
+  label .xfstripchartgen.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # pack master .xfstripchartgen.frame7
+  pack configure .xfstripchartgen.frame7.frame1  -fill x
+  pack configure .xfstripchartgen.frame7.frame17  -fill x
+  pack configure .xfstripchartgen.frame7.frame26  -fill x
+  pack configure .xfstripchartgen.frame7.frame27  -fill x
+  pack configure .xfstripchartgen.frame7.frame40  -fill x
+  pack configure .xfstripchartgen.frame7.frame28  -fill x
+  pack configure .xfstripchartgen.frame7.frame29  -fill x
+  pack configure .xfstripchartgen.frame7.frame30  -fill x
+  pack configure .xfstripchartgen.frame7.frame31  -fill x
+  pack configure .xfstripchartgen.frame7.frame32  -fill x
+  pack configure .xfstripchartgen.frame7.frame43  -fill x
+  pack configure .xfstripchartgen.frame7.frame33  -fill x
+  pack configure .xfstripchartgen.frame7.frame34  -fill x
+  pack configure .xfstripchartgen.frame7.frame35  -fill x
+  pack configure .xfstripchartgen.frame7.frame44  -fill x
+  pack configure .xfstripchartgen.frame7.frame48  -fill x
+  pack configure .xfstripchartgen.frame7.frame36  -fill x
+  pack configure .xfstripchartgen.frame7.frame37  -fill x
+  pack configure .xfstripchartgen.frame7.frame38  -fill x
+  pack configure .xfstripchartgen.frame7.frame39  -fill x
+
+  # pack master .xfstripchartgen.frame7.frame17
+  pack configure .xfstripchartgen.frame7.frame17.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame26
+  pack configure .xfstripchartgen.frame7.frame26.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame27
+  pack configure .xfstripchartgen.frame7.frame27.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame28
+  pack configure .xfstripchartgen.frame7.frame28.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame29
+  pack configure .xfstripchartgen.frame7.frame29.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame30
+  pack configure .xfstripchartgen.frame7.frame30.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame31
+  pack configure .xfstripchartgen.frame7.frame31.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame32
+  pack configure .xfstripchartgen.frame7.frame32.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame32.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame33
+  pack configure .xfstripchartgen.frame7.frame33.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame33.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame34
+  pack configure .xfstripchartgen.frame7.frame34.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame35
+  pack configure .xfstripchartgen.frame7.frame35.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame36
+  pack configure .xfstripchartgen.frame7.frame36.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame36.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame37
+  pack configure .xfstripchartgen.frame7.frame37.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame38
+  pack configure .xfstripchartgen.frame7.frame38.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame38.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame39
+  pack configure .xfstripchartgen.frame7.frame39.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame39.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame7.frame40
+  pack configure .xfstripchartgen.frame7.frame40.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartgen.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfstripchartgen.frame7.frame43
+  pack configure .xfstripchartgen.frame7.frame43.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame43.radiobutton41  -side left
+  pack configure .xfstripchartgen.frame7.frame43.radiobutton42  -side left
+
+  # pack master .xfstripchartgen.frame7.frame44
+  pack configure .xfstripchartgen.frame7.frame44.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame44.radiobutton41  -side left
+  pack configure .xfstripchartgen.frame7.frame44.radiobutton42  -side left
+  pack configure .xfstripchartgen.frame7.frame44.radiobutton45  -side left
+  pack configure .xfstripchartgen.frame7.frame44.radiobutton46  -side left
+  pack configure .xfstripchartgen.frame7.frame44.radiobutton47  -side left
+
+  # pack master .xfstripchartgen.frame7.frame48
+  pack configure .xfstripchartgen.frame7.frame48.label18  -side left
+  pack configure .xfstripchartgen.frame7.frame48.radiobutton41  -side left
+  pack configure .xfstripchartgen.frame7.frame48.radiobutton42  -side left
+  pack configure .xfstripchartgen.frame7.frame48.radiobutton45  -side left
+  pack configure .xfstripchartgen.frame7.frame48.radiobutton46  -side left
+  pack configure .xfstripchartgen.frame7.frame48.radiobutton47  -side left
+
+  # pack master .xfstripchartgen.frame7.frame1
+  pack configure .xfstripchartgen.frame7.frame1.label21  -side left
+  pack configure .xfstripchartgen.frame7.frame1.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartgen.frame8
+  pack configure .xfstripchartgen.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame14
+  pack configure .xfstripchartgen.frame14.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame14.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame14.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame14.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame15
+  pack configure .xfstripchartgen.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartgen.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartgen.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartgen.frame22
+  pack configure .xfstripchartgen.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartgen.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartgen
+  pack configure .xfstripchartgen.frame22  -fill x
+  pack configure .xfstripchartgen.frame7  -expand 1  -fill both
+  pack configure .xfstripchartgen.frame8  -fill x
+  pack configure .xfstripchartgen.frame14  -fill x
+  pack configure .xfstripchartgen.frame15  -fill x
+}
+
+proc xfstripchartdestroy.xfstripchartgen {} {
+     catch "destroy .xfstripchartgen"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartlegend
+proc xfstripchartshow.xfstripchartlegend { args} {
+  global xfBind
+
+  # build widget .xfstripchartlegend
+  catch "destroy .xfstripchartlegend"
+  toplevel .xfstripchartlegend   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartlegend ""
+  wm sizefrom .xfstripchartlegend ""
+  wm maxsize .xfstripchartlegend 1152 849
+  wm minsize .xfstripchartlegend 104 1
+  wm title .xfstripchartlegend {Stripchart Legend Configuration Options}
+
+
+  # build widget .xfstripchartlegend.frame7
+  frame .xfstripchartlegend.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame17
+  frame .xfstripchartlegend.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame17.label18
+  label .xfstripchartlegend.frame7.frame17.label18  -borderwidth {0}  -text {Activebackground:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame17.entry19
+  entry .xfstripchartlegend.frame7.frame17.entry19  -textvariable {xfstripchartlegendOptions(-activebackground)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame17.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-activebackground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame22
+  frame .xfstripchartlegend.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame22.label21
+  label .xfstripchartlegend.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame22.label25
+  label .xfstripchartlegend.frame7.frame22.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  # build widget .xfstripchartlegend.frame7.frame26
+  frame .xfstripchartlegend.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame26.label18
+  label .xfstripchartlegend.frame7.frame26.label18  -borderwidth {0}  -text {Activeborderwidth:}  -width {16}
+
+  # build widget .xfstripchartlegend.frame7.frame26.entry19
+  entry .xfstripchartlegend.frame7.frame26.entry19  -textvariable {xfstripchartlegendOptions(-activeborderwidth)}
+
+  # build widget .xfstripchartlegend.frame7.frame27
+  frame .xfstripchartlegend.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame27.label18
+  label .xfstripchartlegend.frame7.frame27.label18  -borderwidth {0}  -text {Activeforeground:}  -width {16} -anchor e
+  # bindings
+  bind .xfstripchartlegend.frame7.frame27.label18 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-activeforeground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame27.entry19
+  entry .xfstripchartlegend.frame7.frame27.entry19  -textvariable {xfstripchartlegendOptions(-activeforeground)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame27.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-activeforeground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame28
+  frame .xfstripchartlegend.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame28.label18
+  label .xfstripchartlegend.frame7.frame28.label18  -borderwidth {0}  -text {Background:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame28.entry19
+  entry .xfstripchartlegend.frame7.frame28.entry19  -textvariable {xfstripchartlegendOptions(-background)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame28.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-background) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame29
+  frame .xfstripchartlegend.frame7.frame29  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame29.label18
+  label .xfstripchartlegend.frame7.frame29.label18  -borderwidth {0}  -text {Borderwidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame29.entry19
+  entry .xfstripchartlegend.frame7.frame29.entry19  -textvariable {xfstripchartelemOptions(-outlinewidth)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame29.entry19 $xfBind(configure) {set xfstripchart(-font) [XFFontBox $xfFile(fonts)]}
+
+  # build widget .xfstripchartlegend.frame7.frame30
+  frame .xfstripchartlegend.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame30.label18
+  label .xfstripchartlegend.frame7.frame30.label18  -borderwidth {0}  -text {Font:}  -width {16} -anchor e
+  # bindings
+  bind .xfstripchartlegend.frame7.frame30.label18 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-font) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame30.entry19
+  entry .xfstripchartlegend.frame7.frame30.entry19  -textvariable {xfstripchartlegendOptions(-font)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame30.entry19 $xfBind(configure) {set xfstripchartnewval [XFFontBox $xfFile(fonts)]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-font) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame31
+  frame .xfstripchartlegend.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame31.label18
+  label .xfstripchartlegend.frame7.frame31.label18  -borderwidth {0}  -text {Foreground:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame31.entry19
+  entry .xfstripchartlegend.frame7.frame31.entry19  -textvariable {xfstripchartlegendOptions(-foreground)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame31.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-foreground) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame34
+  frame .xfstripchartlegend.frame7.frame34  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame34.label18
+  label .xfstripchartlegend.frame7.frame34.label18  -borderwidth {0}  -text {Ipadx:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame34.entry19
+  entry .xfstripchartlegend.frame7.frame34.entry19  -textvariable {xfstripchartlegendOptions(-ipadx)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame34.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-ipadx) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame35
+  frame .xfstripchartlegend.frame7.frame35  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame35.label18
+  label .xfstripchartlegend.frame7.frame35.label18  -borderwidth {0}  -text {Ipady:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame35.entry19
+  entry .xfstripchartlegend.frame7.frame35.entry19  -textvariable {xfstripchartlegendOptions(-ipady)}
+
+  # build widget .xfstripchartlegend.frame7.frame37
+  frame .xfstripchartlegend.frame7.frame37  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame37.label18
+  label .xfstripchartlegend.frame7.frame37.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame37.entry19
+  entry .xfstripchartlegend.frame7.frame37.entry19  -textvariable {xfstripchartlegendOptions(-position)}
+
+  # build widget .xfstripchartlegend.frame7.frame40
+  frame .xfstripchartlegend.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame40.label18
+  label .xfstripchartlegend.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartlegend.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartlegendOptions(-hide)}
+
+  # build widget .xfstripchartlegend.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartlegend.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartlegendOptions(-hide)}
+
+  # build widget .xfstripchartlegend.frame7.frame14
+  frame .xfstripchartlegend.frame7.frame14  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame14.label18
+  label .xfstripchartlegend.frame7.frame14.label18  -borderwidth {0}  -text {Raised:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame14.radiobutton41
+  radiobutton .xfstripchartlegend.frame7.frame14.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartlegendOptions(-raised)}
+
+  # build widget .xfstripchartlegend.frame7.frame14.radiobutton42
+  radiobutton .xfstripchartlegend.frame7.frame14.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartlegendOptions(-raised)}
+
+  # build widget .xfstripchartlegend.frame7.frame21
+  frame .xfstripchartlegend.frame7.frame21  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame21.label18
+  label .xfstripchartlegend.frame7.frame21.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartlegend.frame7.frame21.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame21.radiobutton23  -highlightthickness {0}  -pady {0}  -text {nw}  -value {nw}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame21.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame21.radiobutton26  -highlightthickness {0}  -pady {0}  -text {n}  -value {n}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame21.radiobutton0
+  radiobutton .xfstripchartlegend.frame7.frame21.radiobutton0  -highlightthickness {0}  -pady {0}  -text {ne}  -value {ne}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame36
+  frame .xfstripchartlegend.frame7.frame36  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame36.label18
+  label .xfstripchartlegend.frame7.frame36.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartlegend.frame7.frame36.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame36.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge}  -value {ridge}  -variable {xfstripchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame36.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame36.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove}  -value {groove}  -variable {xfstripchartlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame41
+  frame .xfstripchartlegend.frame7.frame41  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame41.label18
+  label .xfstripchartlegend.frame7.frame41.label18  -borderwidth {0}  -pady {0}  -text {Activerelief:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame41.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame41.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised}  -value {raised}  -variable {xfstripchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame41.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame41.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfstripchartlegendOptions(-activerelief)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame41.radiobutton27
+  radiobutton .xfstripchartlegend.frame7.frame41.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfstripchartlegendOptions(-activerelief)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame2
+  frame .xfstripchartlegend.frame7.frame2  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame2.label18
+  label .xfstripchartlegend.frame7.frame2.label18  -borderwidth {0}  -pady {0}  -text {Anchor:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame2.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame2.radiobutton23  -highlightthickness {0}  -pady {0}  -text {w}  -value {w}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame2.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame2.radiobutton26  -highlightthickness {0}  -pady {0}  -text {center}  -value {center}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame2.radiobutton0
+  radiobutton .xfstripchartlegend.frame7.frame2.radiobutton0  -highlightthickness {0}  -pady {0}  -text {e}  -value {e}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame4
+  frame .xfstripchartlegend.frame7.frame4  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame4.label18
+  label .xfstripchartlegend.frame7.frame4.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartlegend.frame7.frame4.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame4.radiobutton23  -highlightthickness {0}  -pady {0}  -text {sw}  -value {sw}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7} -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame4.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame4.radiobutton26  -highlightthickness {0}  -pady {0}  -text {s}  -value {s}  -variable {xfstripchartlegendOptions(-anchor)} -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame4.radiobutton0
+  radiobutton .xfstripchartlegend.frame7.frame4.radiobutton0  -highlightthickness {0}  -pady {0}  -text {se}  -value {se}  -variable {xfstripchartlegendOptions(-anchor)}  -width {7}  -anchor w
+
+  # build widget .xfstripchartlegend.frame7.frame6
+  frame .xfstripchartlegend.frame7.frame6  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame6.label18
+  label .xfstripchartlegend.frame7.frame6.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame6.entry19
+  entry .xfstripchartlegend.frame7.frame6.entry19  -textvariable {xfstripchartlegendOptions(-ipadx)}
+  # bindings
+  bind .xfstripchartlegend.frame7.frame6.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartlegend]
+if {$xfstripchartnewval != ""} {set xfstripchartlegendOptions(-ipadx) $xfstripchartnewval}}
+
+  # build widget .xfstripchartlegend.frame7.frame9
+  frame .xfstripchartlegend.frame7.frame9  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame9.label18
+  label .xfstripchartlegend.frame7.frame9.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame9.entry19
+  entry .xfstripchartlegend.frame7.frame9.entry19  -textvariable {xfstripchartlegendOptions(-pady)}
+
+  # build widget .xfstripchartlegend.frame7.frame11
+  frame .xfstripchartlegend.frame7.frame11  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame11.label18
+  label .xfstripchartlegend.frame7.frame11.label18  -borderwidth {0}  -pady {0}  -text {Relief:}  -width {16} -anchor e
+
+  # build widget .xfstripchartlegend.frame7.frame11.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame11.radiobutton23  -highlightthickness {0}  -pady {0}  -text {raised   }  -value {raised}  -variable {xfstripchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfstripchartlegend.frame7.frame11.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame11.radiobutton26  -highlightthickness {0}  -text {sunken}  -value {sunken}  -variable {xfstripchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfstripchartlegend.frame7.frame11.radiobutton27
+  radiobutton .xfstripchartlegend.frame7.frame11.radiobutton27  -highlightthickness {0}  -pady {0}  -text {flat}  -value {flat}  -variable {xfstripchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfstripchartlegend.frame7.frame13
+  frame .xfstripchartlegend.frame7.frame13  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame7.frame13.label18
+  label .xfstripchartlegend.frame7.frame13.label18  -borderwidth {0}  -pady {0}  -width {16}
+
+  # build widget .xfstripchartlegend.frame7.frame13.radiobutton23
+  radiobutton .xfstripchartlegend.frame7.frame13.radiobutton23  -highlightthickness {0}  -pady {0}  -text {ridge     }  -value {ridge}  -variable {xfstripchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfstripchartlegend.frame7.frame13.radiobutton26
+  radiobutton .xfstripchartlegend.frame7.frame13.radiobutton26  -highlightthickness {0}  -pady {0}  -text {groove }  -value {groove}  -variable {xfstripchartlegendOptions(-relief)}  -width {7}
+
+  # build widget .xfstripchartlegend.frame8
+  frame .xfstripchartlegend.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame8.button9
+  button .xfstripchartlegend.frame8.button9  -command {xfstripchartcfg_gen $xfstripchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfstripchartlegend.frame8.button10
+  button .xfstripchartlegend.frame8.button10  -command {xfstripchartcfg_axis $xfstripchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfstripchartlegend.frame8.button11
+  button .xfstripchartlegend.frame8.button11  -command {xfstripchartcfg_elem $xfstripchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfstripchartlegend.frame8.button12
+  button .xfstripchartlegend.frame8.button12  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfstripchartlegend.frame8.button13
+  button .xfstripchartlegend.frame8.button13  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfstripchartlegend.frame15
+  frame .xfstripchartlegend.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartlegend.frame15.button9
+  button .xfstripchartlegend.frame15.button9  -command {set xfnewval "$xfstripchart_path legend configure"
+foreach xfitem [array names xfstripchartlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartlegendOptions($xfitem)]
+      }
+eval $xfnewval
+xfstripchartdestroy.xfstripchartlegend}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartlegend.frame15.button10
+  button .xfstripchartlegend.frame15.button10  -command {set xfnewval "$xfstripchart_path legend configure"
+foreach xfitem [array names xfstripchartlegendOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartlegendOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartlegend.frame15.button12
+  button .xfstripchartlegend.frame15.button12  -command {eval "$xfstripchart_path legend configure $xfstripchartlegendDefaults"
+xfstripchartdestroy.xfstripchartlegend}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartlegend.frame15.checkbutton16
+  checkbutton .xfstripchartlegend.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartlegend.frame22
+  frame .xfstripchartlegend.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartlegend.frame22.label21
+  label .xfstripchartlegend.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartlegend.frame22.label25
+  label .xfstripchartlegend.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # pack master .xfstripchartlegend.frame7
+  pack configure .xfstripchartlegend.frame7.frame22  -fill x
+  pack configure .xfstripchartlegend.frame7.frame17  -fill x
+  pack configure .xfstripchartlegend.frame7.frame26  -fill x
+  pack configure .xfstripchartlegend.frame7.frame27  -fill x
+  pack configure .xfstripchartlegend.frame7.frame41  -fill x
+  pack configure .xfstripchartlegend.frame7.frame36  -fill x
+  pack configure .xfstripchartlegend.frame7.frame21  -fill x
+  pack configure .xfstripchartlegend.frame7.frame2  -fill x
+  pack configure .xfstripchartlegend.frame7.frame4  -fill x
+  pack configure .xfstripchartlegend.frame7.frame28  -fill x
+  pack configure .xfstripchartlegend.frame7.frame29  -fill x
+  pack configure .xfstripchartlegend.frame7.frame30  -fill x
+  pack configure .xfstripchartlegend.frame7.frame31  -fill x
+  pack configure .xfstripchartlegend.frame7.frame34  -fill x
+  pack configure .xfstripchartlegend.frame7.frame35  -fill x
+  pack configure .xfstripchartlegend.frame7.frame40  -fill x
+  pack configure .xfstripchartlegend.frame7.frame6  -fill x
+  pack configure .xfstripchartlegend.frame7.frame9  -fill x
+  pack configure .xfstripchartlegend.frame7.frame37  -fill x
+  pack configure .xfstripchartlegend.frame7.frame14  -fill x
+  pack configure .xfstripchartlegend.frame7.frame11  -fill x
+  pack configure .xfstripchartlegend.frame7.frame13  -fill x
+
+  # pack master .xfstripchartlegend.frame7.frame17
+  pack configure .xfstripchartlegend.frame7.frame17.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame22
+  pack configure .xfstripchartlegend.frame7.frame22.label21  -side left
+  pack configure .xfstripchartlegend.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartlegend.frame7.frame26
+  pack configure .xfstripchartlegend.frame7.frame26.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame27
+  pack configure .xfstripchartlegend.frame7.frame27.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame28
+  pack configure .xfstripchartlegend.frame7.frame28.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame29
+  pack configure .xfstripchartlegend.frame7.frame29.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame29.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame30
+  pack configure .xfstripchartlegend.frame7.frame30.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame31
+  pack configure .xfstripchartlegend.frame7.frame31.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame34
+  pack configure .xfstripchartlegend.frame7.frame34.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame34.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame35
+  pack configure .xfstripchartlegend.frame7.frame35.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame35.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame37
+  pack configure .xfstripchartlegend.frame7.frame37.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame37.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame40
+  pack configure .xfstripchartlegend.frame7.frame40.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartlegend.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame14
+  pack configure .xfstripchartlegend.frame7.frame14.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame14.radiobutton41  -side left
+  pack configure .xfstripchartlegend.frame7.frame14.radiobutton42  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame21
+  pack configure .xfstripchartlegend.frame7.frame21.label18  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame21.radiobutton23  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame21.radiobutton26  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame21.radiobutton0  -anchor n  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame36
+  pack configure .xfstripchartlegend.frame7.frame36.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame36.radiobutton23  -side left
+  pack configure .xfstripchartlegend.frame7.frame36.radiobutton26  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame41
+  pack configure .xfstripchartlegend.frame7.frame41.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame41.radiobutton23  -anchor s  -side left
+  pack configure .xfstripchartlegend.frame7.frame41.radiobutton26  -anchor s  -side left
+  pack configure .xfstripchartlegend.frame7.frame41.radiobutton27  -anchor s  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame2
+  pack configure .xfstripchartlegend.frame7.frame2.label18  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame2.radiobutton23  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame2.radiobutton26  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame2.radiobutton0  -anchor n  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame4
+  pack configure .xfstripchartlegend.frame7.frame4.label18  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame4.radiobutton23  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame4.radiobutton26  -anchor n  -side left
+  pack configure .xfstripchartlegend.frame7.frame4.radiobutton0  -anchor n  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame6
+  pack configure .xfstripchartlegend.frame7.frame6.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame6.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame9
+  pack configure .xfstripchartlegend.frame7.frame9.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame9.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame11
+  pack configure .xfstripchartlegend.frame7.frame11.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame11.radiobutton23  -anchor s  -side left
+  pack configure .xfstripchartlegend.frame7.frame11.radiobutton26  -anchor s  -side left
+  pack configure .xfstripchartlegend.frame7.frame11.radiobutton27  -anchor s  -side left
+
+  # pack master .xfstripchartlegend.frame7.frame13
+  pack configure .xfstripchartlegend.frame7.frame13.label18  -side left
+  pack configure .xfstripchartlegend.frame7.frame13.radiobutton23  -side left
+  pack configure .xfstripchartlegend.frame7.frame13.radiobutton26  -side left
+
+  # pack master .xfstripchartlegend.frame8
+  pack configure .xfstripchartlegend.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame15
+  pack configure .xfstripchartlegend.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartlegend.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartlegend.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartlegend.frame22
+  pack configure .xfstripchartlegend.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartlegend.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartlegend
+  pack configure .xfstripchartlegend.frame22  -fill x
+  pack configure .xfstripchartlegend.frame7  -expand 1  -fill both
+  pack configure .xfstripchartlegend.frame8  -fill x
+  pack configure .xfstripchartlegend.frame15  -fill x
+}
+
+proc xfstripchartdestroy.xfstripchartlegend {} {
+     catch "destroy .xfstripchartlegend"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartps
+proc xfstripchartshow.xfstripchartps { args} {
+  global xfBind
+
+  # build widget .xfstripchartps
+  catch "destroy .xfstripchartps"
+  toplevel .xfstripchartps   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartps ""
+  wm sizefrom .xfstripchartps ""
+  wm maxsize .xfstripchartps 1152 849
+  wm minsize .xfstripchartps 104 10
+  wm title .xfstripchartps {Stripchart Postscript Configuration}
+
+
+  # build widget .xfstripchartps.frame7
+  frame .xfstripchartps.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame17
+  frame .xfstripchartps.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame17.label18
+  label .xfstripchartps.frame7.frame17.label18  -borderwidth {0}  -text {Colormap:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame17.entry19
+  entry .xfstripchartps.frame7.frame17.entry19  -textvariable {xfstripchartpsOptions(-colormap)}
+
+  # build widget .xfstripchartps.frame7.frame22
+  frame .xfstripchartps.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame22.label21
+  label .xfstripchartps.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame22.label25
+  label .xfstripchartps.frame7.frame22.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  # build widget .xfstripchartps.frame7.frame26
+  frame .xfstripchartps.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame26.label18
+  label .xfstripchartps.frame7.frame26.label18  -borderwidth {0}  -text {Colormode:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame26.entry19
+  entry .xfstripchartps.frame7.frame26.entry19  -textvariable {xfstripchartpsOptions(-colormode)}
+
+  # build widget .xfstripchartps.frame7.frame27
+  frame .xfstripchartps.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame27.label18
+  label .xfstripchartps.frame7.frame27.label18  -borderwidth {0}  -text {Fontmap:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame27.entry19
+  entry .xfstripchartps.frame7.frame27.entry19  -textvariable {xfstripchartpsOptions(-fontmap)}
+
+  # build widget .xfstripchartps.frame7.frame28
+  frame .xfstripchartps.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame28.label18
+  label .xfstripchartps.frame7.frame28.label18  -borderwidth {0}  -text {Padx:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame28.entry19
+  entry .xfstripchartps.frame7.frame28.entry19  -textvariable {xfstripchartpsOptions(-padx)}
+
+  # build widget .xfstripchartps.frame7.frame40
+  frame .xfstripchartps.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame40.label18
+  label .xfstripchartps.frame7.frame40.label18  -borderwidth {0}  -text {Decorations:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartps.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartpsOptions(-decorations)}
+
+  # build widget .xfstripchartps.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartps.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartpsOptions(-decorations)}
+
+  # build widget .xfstripchartps.frame7.frame18
+  frame .xfstripchartps.frame7.frame18  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame18.label18
+  label .xfstripchartps.frame7.frame18.label18  -borderwidth {0}  -text {Landscape:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame18.radiobutton41
+  radiobutton .xfstripchartps.frame7.frame18.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartpsOptions(-landscape)}
+
+  # build widget .xfstripchartps.frame7.frame18.radiobutton42
+  radiobutton .xfstripchartps.frame7.frame18.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartpsOptions(-landscape)}
+
+  # build widget .xfstripchartps.frame7.frame20
+  frame .xfstripchartps.frame7.frame20  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame20.label18
+  label .xfstripchartps.frame7.frame20.label18  -borderwidth {0}  -text {Pady:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame20.entry19
+  entry .xfstripchartps.frame7.frame20.entry19  -textvariable {xfstripchartpsOptions(-pady)}
+
+  # build widget .xfstripchartps.frame7.frame23
+  frame .xfstripchartps.frame7.frame23  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame23.label18
+  label .xfstripchartps.frame7.frame23.label18  -borderwidth {0}  -text {Paperheight:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame23.entry19
+  entry .xfstripchartps.frame7.frame23.entry19  -textvariable {xfstripchartpsOptions(-paperheight)}
+
+  # build widget .xfstripchartps.frame7.frame25
+  frame .xfstripchartps.frame7.frame25  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame25.label18
+  label .xfstripchartps.frame7.frame25.label18  -borderwidth {0}  -text {Paperwidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame25.entry19
+  entry .xfstripchartps.frame7.frame25.entry19  -textvariable {xfstripchartpsOptions(-paperwidth)}
+
+  # build widget .xfstripchartps.frame7.frame30
+  frame .xfstripchartps.frame7.frame30  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame30.label18
+  label .xfstripchartps.frame7.frame30.label18  -borderwidth {0}  -text {Height:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame30.entry19
+  entry .xfstripchartps.frame7.frame30.entry19  -textvariable {xfstripchartpsOptions(-height)}
+
+  # build widget .xfstripchartps.frame7.frame31
+  frame .xfstripchartps.frame7.frame31  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame7.frame31.label18
+  label .xfstripchartps.frame7.frame31.label18  -borderwidth {0}  -text {Width:}  -width {16} -anchor e
+
+  # build widget .xfstripchartps.frame7.frame31.entry19
+  entry .xfstripchartps.frame7.frame31.entry19  -textvariable {xfstripchartpsOptions(-width)}
+
+  # build widget .xfstripchartps.frame8
+  frame .xfstripchartps.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame8.button9
+  button .xfstripchartps.frame8.button9  -command {xfstripchartcfg_elem .frame0.xfstripchart0}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfstripchartps.frame8.button10
+  button .xfstripchartps.frame8.button10  -command {xfstripchartcfg_axis .frame0.xfstripchart0}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfstripchartps.frame8.button11
+  button .xfstripchartps.frame8.button11  -command {xfstripchartcfg_legend .frame0.xfstripchart0}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfstripchartps.frame8.button12
+  button .xfstripchartps.frame8.button12  -command {xfstripchartcfg_xhair .frame0.xfstripchart0}  -padx {11}  -pady {4}  -text {Crosshairs}
+
+  # build widget .xfstripchartps.frame8.button13
+  button .xfstripchartps.frame8.button13  -command {xfstripchartcfg_gen .frame0.xfstripchart0}  -padx {11}  -pady {4}  -text {Paremeters}
+
+  # build widget .xfstripchartps.frame15
+  frame .xfstripchartps.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartps.frame15.button9
+  button .xfstripchartps.frame15.button9  -command {set xfstripchartpsDefaults ""
+foreach xfitem [array names xfstripchartpsOptions] {
+	lappend xfstripchartpsDefaults $xfitem
+	lappend xfstripchartpsDefaults [string trim $xfstripchartpsOptions($xfitem)]
+      }
+eval "$xfstripchart_path postscript configure $xfstripchartpsDefaults"
+xfstripchartdestroy.xfstripchartps}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartps.frame15.button10
+  button .xfstripchartps.frame15.button10  -command {set xfnewval "$xfstripchart_path postscript configure"
+foreach xfitem [array names xfstripchartpsOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartpsOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartps.frame15.button12
+  button .xfstripchartps.frame15.button12  -command {eval "$xfstripchart_path postscript configure $xfstripchartpsDefaults"
+xfstripchartdestroy.xfstripchartps}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartps.frame15.checkbutton16
+  checkbutton .xfstripchartps.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartps.frame22
+  frame .xfstripchartps.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartps.frame22.label21
+  label .xfstripchartps.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartps.frame22.label25
+  label .xfstripchartps.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # pack master .xfstripchartps.frame7
+  pack configure .xfstripchartps.frame7.frame22  -fill x
+  pack configure .xfstripchartps.frame7.frame17  -fill x
+  pack configure .xfstripchartps.frame7.frame26  -fill x
+  pack configure .xfstripchartps.frame7.frame40  -fill x
+  pack configure .xfstripchartps.frame7.frame27  -fill x
+  pack configure .xfstripchartps.frame7.frame18  -fill x
+  pack configure .xfstripchartps.frame7.frame28  -fill x
+  pack configure .xfstripchartps.frame7.frame20  -fill x
+  pack configure .xfstripchartps.frame7.frame23  -fill x
+  pack configure .xfstripchartps.frame7.frame25  -fill x
+  pack configure .xfstripchartps.frame7.frame30  -fill x
+  pack configure .xfstripchartps.frame7.frame31  -fill x
+
+  # pack master .xfstripchartps.frame7.frame17
+  pack configure .xfstripchartps.frame7.frame17.label18  -side left
+  pack configure .xfstripchartps.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame22
+  pack configure .xfstripchartps.frame7.frame22.label21  -side left
+  pack configure .xfstripchartps.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartps.frame7.frame26
+  pack configure .xfstripchartps.frame7.frame26.label18  -side left
+  pack configure .xfstripchartps.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame27
+  pack configure .xfstripchartps.frame7.frame27.label18  -side left
+  pack configure .xfstripchartps.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame28
+  pack configure .xfstripchartps.frame7.frame28.label18  -side left
+  pack configure .xfstripchartps.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame40
+  pack configure .xfstripchartps.frame7.frame40.label18  -side left
+  pack configure .xfstripchartps.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartps.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfstripchartps.frame7.frame18
+  pack configure .xfstripchartps.frame7.frame18.label18  -side left
+  pack configure .xfstripchartps.frame7.frame18.radiobutton41  -side left
+  pack configure .xfstripchartps.frame7.frame18.radiobutton42  -side left
+
+  # pack master .xfstripchartps.frame7.frame20
+  pack configure .xfstripchartps.frame7.frame20.label18  -side left
+  pack configure .xfstripchartps.frame7.frame20.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame23
+  pack configure .xfstripchartps.frame7.frame23.label18  -side left
+  pack configure .xfstripchartps.frame7.frame23.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame25
+  pack configure .xfstripchartps.frame7.frame25.label18  -side left
+  pack configure .xfstripchartps.frame7.frame25.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame30
+  pack configure .xfstripchartps.frame7.frame30.label18  -side left
+  pack configure .xfstripchartps.frame7.frame30.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame7.frame31
+  pack configure .xfstripchartps.frame7.frame31.label18  -side left
+  pack configure .xfstripchartps.frame7.frame31.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame8
+  pack configure .xfstripchartps.frame8.button13  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame8.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame15
+  pack configure .xfstripchartps.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartps.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartps.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartps.frame22
+  pack configure .xfstripchartps.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartps.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartps
+  pack configure .xfstripchartps.frame22  -fill x
+  pack configure .xfstripchartps.frame7  -expand 1  -fill both
+  pack configure .xfstripchartps.frame8  -fill x
+  pack configure .xfstripchartps.frame15  -fill x
+}
+
+proc xfstripchartdestroy.xfstripchartps {} {
+     catch "destroy .xfstripchartps"
+}
+
+
+# procedure to show window xfstripchartshow.xfstripchartxhair
+proc xfstripchartshow.xfstripchartxhair { args} {
+  global xfBind
+
+  # build widget .xfstripchartxhair
+  catch "destroy .xfstripchartxhair"
+  toplevel .xfstripchartxhair   -relief {raised}
+
+  # Window manager configurations
+  wm positionfrom .xfstripchartxhair ""
+  wm sizefrom .xfstripchartxhair ""
+  wm maxsize .xfstripchartxhair 1152 849
+  wm minsize .xfstripchartxhair 104 10
+  wm title .xfstripchartxhair {Stripchart Crosshairs Configuration}
+
+  # build widget .xfstripchartxhair.frame7
+  frame .xfstripchartxhair.frame7  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame17
+  frame .xfstripchartxhair.frame7.frame17  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame17.label18
+  label .xfstripchartxhair.frame7.frame17.label18  -borderwidth {0}  -text {Color:}  -width {16} -anchor e
+
+  # build widget .xfstripchartxhair.frame7.frame17.entry19
+  entry .xfstripchartxhair.frame7.frame17.entry19  -textvariable {xfstripchartxhairOptions(-color)}
+  # bindings
+  bind .xfstripchartxhair.frame7.frame17.entry19 $xfBind(configure) {set xfstripchartnewval [tk_chooseColor -parent .xfstripchartxhair]
+if {$xfstripchartnewval != ""} {set xfstripchartxhairOptions(-color) $xfstripchartnewval}}
+
+  # build widget .xfstripchartxhair.frame7.frame22
+  frame .xfstripchartxhair.frame7.frame22  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame22.label21
+  label .xfstripchartxhair.frame7.frame22.label21  -borderwidth {0}  -text {Name:}  -width {16} -anchor e
+
+  # build widget .xfstripchartxhair.frame7.frame22.label25
+  label .xfstripchartxhair.frame7.frame22.label25  -borderwidth {0}  -text {stripchart0}  -textvariable {xfstripchart_name}
+
+  # build widget .xfstripchartxhair.frame7.frame26
+  frame .xfstripchartxhair.frame7.frame26  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame26.label18
+  label .xfstripchartxhair.frame7.frame26.label18  -borderwidth {0}  -text {Dashes:}  -width {16} -anchor e
+
+  # build widget .xfstripchartxhair.frame7.frame26.entry19
+  entry .xfstripchartxhair.frame7.frame26.entry19  -textvariable {xfstripchartxhairOptions(-dashes)}
+
+  # build widget .xfstripchartxhair.frame7.frame27
+  frame .xfstripchartxhair.frame7.frame27  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame27.label18
+  label .xfstripchartxhair.frame7.frame27.label18  -borderwidth {0}  -text {Linewidth:}  -width {16} -anchor e
+
+  # build widget .xfstripchartxhair.frame7.frame27.entry19
+  entry .xfstripchartxhair.frame7.frame27.entry19  -textvariable {xfstripchartxhairOptions(-linewidth)}
+
+  # build widget .xfstripchartxhair.frame7.frame28
+  frame .xfstripchartxhair.frame7.frame28  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame28.label18
+  label .xfstripchartxhair.frame7.frame28.label18  -borderwidth {0}  -text {Position:}  -width {16} -anchor e
+
+  # build widget .xfstripchartxhair.frame7.frame28.entry19
+  entry .xfstripchartxhair.frame7.frame28.entry19  -textvariable {xfstripchartxhairOptions(-position)}
+
+  # build widget .xfstripchartxhair.frame7.frame40
+  frame .xfstripchartxhair.frame7.frame40  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame7.frame40.label18
+  label .xfstripchartxhair.frame7.frame40.label18  -borderwidth {0}  -text {Hide:}  -width {16}
+
+  # build widget .xfstripchartxhair.frame7.frame40.radiobutton41
+  radiobutton .xfstripchartxhair.frame7.frame40.radiobutton41  -text {true}  -value {1}  -variable {xfstripchartxhairOptions(-hide)}
+
+  # build widget .xfstripchartxhair.frame7.frame40.radiobutton42
+  radiobutton .xfstripchartxhair.frame7.frame40.radiobutton42  -text {false}  -value {0}  -variable {xfstripchartxhairOptions(-hide)}
+
+  # build widget .xfstripchartxhair.frame8
+  frame .xfstripchartxhair.frame8  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame8.button9
+  button .xfstripchartxhair.frame8.button9  -command {xfstripchartcfg_elem $xfstripchart_path}  -padx {11}  -pady {4}  -text {Element}
+
+  # build widget .xfstripchartxhair.frame8.button10
+  button .xfstripchartxhair.frame8.button10  -command {xfstripchartcfg_axis $xfstripchart_path}  -padx {11}  -pady {4}  -text {Axis}
+
+  # build widget .xfstripchartxhair.frame8.button11
+  button .xfstripchartxhair.frame8.button11  -command {xfstripchartcfg_legend $xfstripchart_path}  -padx {11}  -pady {4}  -text {Legend}
+
+  # build widget .xfstripchartxhair.frame8.button12
+  button .xfstripchartxhair.frame8.button12  -command {xfstripchartcfg_gen $xfstripchart_path}  -padx {11}  -pady {4}  -text {Parameters}
+
+  # build widget .xfstripchartxhair.frame8.button13
+  button .xfstripchartxhair.frame8.button13  -command {xfstripchartcfg_ps $xfstripchart_path}  -padx {11}  -pady {4}  -text {Postscript}
+
+  # build widget .xfstripchartxhair.frame15
+  frame .xfstripchartxhair.frame15  -height {30}  -width {30}
+
+  # build widget .xfstripchartxhair.frame15.button9
+  button .xfstripchartxhair.frame15.button9  -command {set xfstripchartDefaults ""
+foreach xfitem [array names xfstripchartxhairOptions] {
+	lappend xfstripchartxhairDefaults $xfitem
+	lappend xfstripchartxhairDefaults [string trim $xfstripchartxhairOptions($xfitem)]
+      }
+eval "$xfstripchart_path crosshairs configure $xfstripchartxhairDefaults"
+xfstripchartdestroy.xfstripchartxhair}  -padx {11}  -pady {4}  -text {OK}
+
+  # build widget .xfstripchartxhair.frame15.button10
+  button .xfstripchartxhair.frame15.button10  -command {set xfnewval "$xfstripchart_path crosshairs configure"
+foreach xfitem [array names xfstripchartxhairOptions] {
+	lappend xfnewval $xfitem
+	lappend xfnewval [string trim $xfstripchartxhairOptions($xfitem)]
+      }
+eval $xfnewval}  -padx {11}  -pady {4}  -text {Apply}
+
+  # build widget .xfstripchartxhair.frame15.button12
+  button .xfstripchartxhair.frame15.button12  -command {eval "$xfstripchart_path crosshairs configure $xfstripchartxhairDefaults"
+xfstripchartdestroy.xfstripchartxhair}  -padx {11}  -pady {4}  -text {Cancel}
+
+  # build widget .xfstripchartxhair.frame15.checkbutton16
+  checkbutton .xfstripchartxhair.frame15.checkbutton16  -text {Apply permanently}  -variable {xfConf(applyParameters)}
+
+  # build widget .xfstripchartxhair.frame22
+  frame .xfstripchartxhair.frame22  -borderwidth {2}  -height {30}  -relief {raised}  -width {30}
+
+  # build widget .xfstripchartxhair.frame22.label21
+  label .xfstripchartxhair.frame22.label21  -borderwidth {0}  -text {Widget path:}
+
+  # build widget .xfstripchartxhair.frame22.label25
+  label .xfstripchartxhair.frame22.label25  -borderwidth {0}  -text {.frame0}  -textvariable {xfstripchart_parent}
+
+  # pack master .xfstripchartxhair.frame7
+  pack configure .xfstripchartxhair.frame7.frame22  -fill x
+  pack configure .xfstripchartxhair.frame7.frame17  -fill x
+  pack configure .xfstripchartxhair.frame7.frame26  -fill x
+  pack configure .xfstripchartxhair.frame7.frame27  -fill x
+  pack configure .xfstripchartxhair.frame7.frame40  -fill x
+  pack configure .xfstripchartxhair.frame7.frame28  -fill x
+
+  # pack master .xfstripchartxhair.frame7.frame17
+  pack configure .xfstripchartxhair.frame7.frame17.label18  -side left
+  pack configure .xfstripchartxhair.frame7.frame17.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame7.frame22
+  pack configure .xfstripchartxhair.frame7.frame22.label21  -side left
+  pack configure .xfstripchartxhair.frame7.frame22.label25  -anchor w  -pady 4
+
+  # pack master .xfstripchartxhair.frame7.frame26
+  pack configure .xfstripchartxhair.frame7.frame26.label18  -side left
+  pack configure .xfstripchartxhair.frame7.frame26.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame7.frame27
+  pack configure .xfstripchartxhair.frame7.frame27.label18  -side left
+  pack configure .xfstripchartxhair.frame7.frame27.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame7.frame28
+  pack configure .xfstripchartxhair.frame7.frame28.label18  -side left
+  pack configure .xfstripchartxhair.frame7.frame28.entry19  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame7.frame40
+  pack configure .xfstripchartxhair.frame7.frame40.label18  -side left
+  pack configure .xfstripchartxhair.frame7.frame40.radiobutton41  -side left
+  pack configure .xfstripchartxhair.frame7.frame40.radiobutton42  -side left
+
+  # pack master .xfstripchartxhair.frame8
+  pack configure .xfstripchartxhair.frame8.button12  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame8.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame8.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame8.button11  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame8.button13  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame15
+  pack configure .xfstripchartxhair.frame15.button9  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame15.button10  -expand 1  -fill x  -side left
+  pack configure .xfstripchartxhair.frame15.checkbutton16  -expand 1  -fill both  -side left
+  pack configure .xfstripchartxhair.frame15.button12  -expand 1  -fill x  -side left
+
+  # pack master .xfstripchartxhair.frame22
+  pack configure .xfstripchartxhair.frame22.label21  -anchor e  -expand 1  -side left
+  pack configure .xfstripchartxhair.frame22.label25  -anchor w  -expand 1  -side left
+
+  # pack master .xfstripchartxhair
+  pack configure .xfstripchartxhair.frame22  -fill x
+  pack configure .xfstripchartxhair.frame7  -expand 1  -fill both
+  pack configure .xfstripchartxhair.frame8  -fill x
+  pack configure .xfstripchartxhair.frame15  -fill x
+}
+
+proc xfstripchartdestroy.xfstripchartxhair {} {
+     catch "destroy .xfstripchartxhair"
+}
+
+# Procedure: xfstripchart_getaxisopt
+proc xfstripchart_getaxisopt { stripchart_path axis} {
+    global xfstripchartaxisOptions xfstripchartaxisDefaults
+
+    foreach item [$stripchart_path $axis configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchartaxisOptions($name) $value
+    }
+    set names [lsort [array names xfstripchartaxisOptions]]
+    set xfstripchartaxisDefaults {}
+    foreach i $names {
+	lappend xfstripchartaxisDefaults $i $xfstripchartaxisOptions($i)
+    }
+}
+
+
+# Procedure: xfstripchart_getelemopt
+proc xfstripchart_getelemopt { stripchart_path element} {
+    global xfstripchartelemOptions xfstripchartelemDefaults xfstripchartcurelem
+
+    set xfstripchartcurelem $element
+    foreach item [$stripchart_path element configure $element] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchartelemOptions($name) $value
+    }
+    set names [lsort [array names xfstripchartelemOptions]]
+    set xfstripchartelemDefaults {}
+    foreach i $names {
+	lappend xfstripchartelemDefaults $i $xfstripchartelemOptions($i)
+    }
+}
+
+
+# Procedure: xfstripchart_getlegendopt
+proc xfstripchart_getlegendopt { stripchart_path} {
+    global xfstripchartlegendOptions xfstripchartlegendDefaults
+
+    foreach item [$stripchart_path legend configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchartlegendOptions($name) $value
+    }
+    set names [lsort [array names xfstripchartlegendOptions]]
+    set xfstripchartlegendDefaults {}
+    foreach i $names {
+	lappend xfstripchartlegendDefaults $i $xfstripchartlegendOptions($i)
+    }
+}
+
+
+# Procedure: xfstripchart_getopt
+proc xfstripchart_getopt { stripchart_path} {
+    global xfstripchart xfstripchartDefaults
+
+    foreach item [$stripchart_path configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchart($name) $value
+    }
+    set names [lsort [array names xfstripchart]]
+    set xfstripchartDefaults {}
+    foreach i $names {
+	lappend xfstripchartDefaults $i $xfstripchart($i)
+    }
+}
+
+
+# Procedure: xfstripchart_getpsopt
+proc xfstripchart_getpsopt { stripchart_path} {
+    global xfstripchartpsOptions xfstripchartpsDefaults
+
+    foreach item [$stripchart_path postscript configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchartpsOptions($name) $value
+    }
+    set names [lsort [array names xfstripchartpsOptions]]
+    set xfstripchartpsDefaults {}
+    foreach i $names {
+	lappend xfstripchartpsDefaults $i $xfstripchartpsOptions($i)
+    }
+}
+
+
+# Procedure: xfstripchart_getxhairopt
+proc xfstripchart_getxhairopt { stripchart_path} {
+    global xfstripchartxhairOptions xfstripchartxhairDefaults
+
+    foreach item [$stripchart_path crosshairs configure] {
+	if {[llength $item] < 4} {
+	    continue
+	}
+	set name [lindex $item 0] 
+	set value [lindex $item 4]
+	set xfstripchartxhairOptions($name) $value
+    }
+    set names [lsort [array names xfstripchartxhairOptions]]
+    set xfstripchartxhairDefaults {}
+    foreach i $names {
+	lappend xfstripchartxhairDefaults $i $xfstripchartxhairOptions($i)
+    }
+}
+
+
+# Procedure: xfstripchartcfg_axis
+proc xfstripchartcfg_axis { stripchart_path} {
+    global xfstripchartaxisOptions xfstripchartaxisDefaults 
+    global xfstripchart_parent xfstripchart_name xfstripchartcuraxis xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    xfstripchart_getaxisopt $stripchart_path xaxis
+    xfstripchartshow.xfstripchartaxis
+    set xfstripchartcuraxis xaxis
+}
+
+
+# Procedure: xfstripchartcfg_elem
+proc xfstripchartcfg_elem { stripchart_path} {
+    global xfstripchartelemOptions xfstripchartelemDefaults
+    global xfstripchart_parent xfstripchart_name xfstripchartcurelem xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    set elements [lsort [$stripchart_path element names]]
+    if	{ [llength $elements] > 0 } {
+	  set element [lindex $elements 0]
+	  xfstripchart_getelemopt $stripchart_path $element
+	} {
+	  set xfstripchartcurelem ""
+	}
+
+    xfstripchartshow.xfstripchartelem
+    update
+
+    set count 0
+    if {[winfo exists .xfstripchartelem.frame7.elemnames.frame]} {destroy .xfstripchartelem.frame7.elemnames.frame}
+    frame .xfstripchartelem.frame7.elemnames.frame
+    pack .xfstripchartelem.frame7.elemnames.frame
+    foreach i $elements {
+	radiobutton .xfstripchartelem.frame7.elemnames.frame.rbutton_$i -variable xfstripchartcurelem -value $i -text $i  -command "xfstripchart_getelemopt $stripchart_path $i"
+	pack .xfstripchartelem.frame7.elemnames.frame.rbutton_$i -side left
+	incr count
+    }
+}
+
+
+# Procedure: xfstripchartcfg_gen
+proc xfstripchartcfg_gen { stripchart_path} {
+    global xfstripchart xfstripchartDefaults
+    global xfstripchart_parent xfstripchart_name xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    xfstripchart_getopt $stripchart_path
+    xfstripchartshow.xfstripchartgen
+}
+
+
+# Procedure: xfstripchartcfg_legend
+proc xfstripchartcfg_legend { stripchart_path} {
+    global xfstripchartlegendOptions xfstripchartlegendDefaults
+    global xfstripchart_parent xfstripchart_name xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    xfstripchart_getlegendopt $stripchart_path
+    xfstripchartshow.xfstripchartlegend
+}
+
+
+# Procedure: xfstripchartcfg_ps
+proc xfstripchartcfg_ps { stripchart_path} {
+    global xfstripchartpsOptions xfstripchartpsDefaults
+    global xfstripchart_parent xfstripchart_name xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    xfstripchart_getpsopt $stripchart_path
+    xfstripchartshow.xfstripchartps
+}
+
+
+# Procedure: xfstripchartcfg_xhair
+proc xfstripchartcfg_xhair { stripchart_path} {
+    global xfstripchartxhairOptions xfstripchartxhairDefaults
+    global xfstripchart_parent xfstripchart_name xfstripchart_path
+
+    set xfstripchart_parent [winfo parent $stripchart_path]
+    set xfstripchart_name [winfo name $stripchart_path]
+    set xfstripchart_path $stripchart_path
+
+    xfstripchart_getxhairopt $stripchart_path
+    xfstripchartshow.xfstripchartxhair
+}
+
+# eof
+
